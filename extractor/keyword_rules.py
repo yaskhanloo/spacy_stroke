@@ -122,6 +122,15 @@ class KeywordExtractor:
         
         return results
     
+    def has_negation(self, text: str, term_position: int) -> bool:
+        """Check if a term is negated (keine, nicht, ohne)."""
+        context = text[max(0, term_position-50):term_position]
+        negation_patterns = [r'\bkein[e]?\s+', r'\bnicht\s+', r'\bohne\s+']
+        for pattern in negation_patterns:
+            if re.search(pattern, context, re.IGNORECASE):
+                return True
+        return False
+
     def extract_all(self, text: str, report_id: Optional[str] = None) -> Dict:
         """Extract all categories from text."""
         results = {
