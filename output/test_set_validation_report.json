@@ -1,0 +1,221 @@
+{
+  "evaluation_summary": {
+    "total_reports": 5,
+    "categories_evaluated": 19,
+    "timestamp": "2025-07-02T15:39:39.365258"
+  },
+  "accuracy_metrics": {
+    "anaesthesia": {
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "note": "Category missing"
+    },
+    "aspiration_catheter_used": {
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "note": "Category missing"
+    },
+    "guide_catheter_used": {
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "note": "Category missing"
+    },
+    "microcatheter_used": {
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "note": "Category missing"
+    },
+    "stent_retriever_used": {
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "note": "Category missing"
+    },
+    "tici_score": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "exact_accuracy": 0.6,
+      "total_samples": 5
+    },
+    "periprocedural_ia_thrombolysis": {
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "note": "Category missing"
+    },
+    "periprocedural_antiplatelet": {
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "note": "Category missing"
+    },
+    "complications": {
+      "precision": 0.6,
+      "recall": 1.0,
+      "f1": 0.75,
+      "exact_accuracy": 0.6,
+      "total_samples": 5
+    },
+    "site_of_occlusion": {
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "note": "Category missing"
+    },
+    "stenoses_cervical_arteries": {
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "note": "Category missing"
+    },
+    "extracranial_pta_stenting": {
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "note": "Category missing"
+    },
+    "intracranial_pta_stenting": {
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "note": "Category missing"
+    },
+    "technique_first_maneuver": {
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "note": "Category missing"
+    },
+    "visualisation_vessels": {
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "note": "Category missing"
+    },
+    "number_recanalization_attempts": {
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "note": "Category missing"
+    },
+    "periprocedural_spasmolytic": {
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "note": "Category missing"
+    },
+    "start_time_intervention": {
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "note": "Category missing"
+    },
+    "end_time_intervention": {
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "note": "Category missing"
+    },
+    "overall": {
+      "avg_precision": 0.08421052631578947,
+      "avg_recall": 0.10526315789473684,
+      "avg_f1": 0.09210526315789473,
+      "categories_evaluated": 19
+    }
+  },
+  "confusion_matrices": {
+    "tici_score": [
+      [
+        0,
+        0
+      ],
+      [
+        0,
+        5
+      ]
+    ],
+    "complications": [
+      [
+        0,
+        2
+      ],
+      [
+        0,
+        3
+      ]
+    ]
+  },
+  "confidence_analysis": {
+    "note": "Confidence score analysis not yet implemented",
+    "avg_confidence": 0.85,
+    "confidence_bins": [
+      0.8,
+      0.85,
+      0.9,
+      0.95,
+      1.0
+    ],
+    "accuracy_by_confidence": [
+      0.75,
+      0.8,
+      0.85,
+      0.9,
+      0.95
+    ]
+  },
+  "error_analysis": {
+    "false_positives": [
+      "complications:val_001 - predicted 'komplikationen' but should be null",
+      "complications:val_004 - predicted 'hämatom' but should be null"
+    ],
+    "false_negatives": [],
+    "misclassifications": [
+      "tici_score:val_001 - predicted 'tici 3, rekanalisierung' but should be 'tici 3'",
+      "tici_score:val_004 - predicted 'rekanalisierung, tici 2c' but should be 'tici 2c'"
+    ]
+  },
+  "recommendations": [
+    "Improve anaesthesia precision (0.00) by refining extraction patterns to reduce false positives",
+    "Improve anaesthesia recall (0.00) by adding more pattern variations to catch missed cases",
+    "Improve aspiration_catheter_used precision (0.00) by refining extraction patterns to reduce false positives",
+    "Improve aspiration_catheter_used recall (0.00) by adding more pattern variations to catch missed cases",
+    "Improve guide_catheter_used precision (0.00) by refining extraction patterns to reduce false positives",
+    "Improve guide_catheter_used recall (0.00) by adding more pattern variations to catch missed cases",
+    "Improve microcatheter_used precision (0.00) by refining extraction patterns to reduce false positives",
+    "Improve microcatheter_used recall (0.00) by adding more pattern variations to catch missed cases",
+    "Improve stent_retriever_used precision (0.00) by refining extraction patterns to reduce false positives",
+    "Improve stent_retriever_used recall (0.00) by adding more pattern variations to catch missed cases",
+    "Improve periprocedural_ia_thrombolysis precision (0.00) by refining extraction patterns to reduce false positives",
+    "Improve periprocedural_ia_thrombolysis recall (0.00) by adding more pattern variations to catch missed cases",
+    "Improve periprocedural_antiplatelet precision (0.00) by refining extraction patterns to reduce false positives",
+    "Improve periprocedural_antiplatelet recall (0.00) by adding more pattern variations to catch missed cases",
+    "Improve complications precision (0.60) by refining extraction patterns to reduce false positives",
+    "Balance complications precision-recall trade-off (P=0.60, R=1.00)",
+    "Improve site_of_occlusion precision (0.00) by refining extraction patterns to reduce false positives",
+    "Improve site_of_occlusion recall (0.00) by adding more pattern variations to catch missed cases",
+    "Improve stenoses_cervical_arteries precision (0.00) by refining extraction patterns to reduce false positives",
+    "Improve stenoses_cervical_arteries recall (0.00) by adding more pattern variations to catch missed cases",
+    "Improve extracranial_pta_stenting precision (0.00) by refining extraction patterns to reduce false positives",
+    "Improve extracranial_pta_stenting recall (0.00) by adding more pattern variations to catch missed cases",
+    "Improve intracranial_pta_stenting precision (0.00) by refining extraction patterns to reduce false positives",
+    "Improve intracranial_pta_stenting recall (0.00) by adding more pattern variations to catch missed cases",
+    "Improve technique_first_maneuver precision (0.00) by refining extraction patterns to reduce false positives",
+    "Improve technique_first_maneuver recall (0.00) by adding more pattern variations to catch missed cases",
+    "Improve visualisation_vessels precision (0.00) by refining extraction patterns to reduce false positives",
+    "Improve visualisation_vessels recall (0.00) by adding more pattern variations to catch missed cases",
+    "Improve number_recanalization_attempts precision (0.00) by refining extraction patterns to reduce false positives",
+    "Improve number_recanalization_attempts recall (0.00) by adding more pattern variations to catch missed cases",
+    "Improve periprocedural_spasmolytic precision (0.00) by refining extraction patterns to reduce false positives",
+    "Improve periprocedural_spasmolytic recall (0.00) by adding more pattern variations to catch missed cases",
+    "Improve start_time_intervention precision (0.00) by refining extraction patterns to reduce false positives",
+    "Improve start_time_intervention recall (0.00) by adding more pattern variations to catch missed cases",
+    "Improve end_time_intervention precision (0.00) by refining extraction patterns to reduce false positives",
+    "Improve end_time_intervention recall (0.00) by adding more pattern variations to catch missed cases",
+    "Consider implementing ML-based extraction to improve overall F1 score"
+  ]
+}

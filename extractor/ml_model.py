@@ -1,4 +1,5 @@
 import pandas as pd
+import csv
 import numpy as np
 from typing import Dict, List, Tuple, Optional, Any
 from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer
@@ -45,9 +46,13 @@ class FeatureExtractor:
         features['avg_word_length'] = np.mean([len(word) for word in text.split()]) if text.split() else 0
         
         # Medical term frequency
+        # Medical terms based on German report terminology from CSV
         medical_terms = [
             'anästhesie', 'sedierung', 'rtpa', 'heparin', 'thrombektomie',
-            'tici', 'trevo', 'sofia', 'solitaire', 'perforation', 'blutung'
+            'tici', 'trevo', 'sofia', 'solitaire', 'perforation', 'blutung',
+            'aspirationskatheter', 'mikrokatheter', 'stentretriever', 'manöver',
+            'thrombozytenaggregationshemmung', 'spasmolyse', 'gefässverschlüsse',
+            'stenosen', 'reperfusionsergebnis', 'darstellung', 'komplikationen'
         ]
         
         for term in medical_terms:
@@ -79,13 +84,27 @@ class FeatureExtractor:
         """Extract context-specific features for a target category."""
         features = {}
         
-        # Category-specific patterns
+        # Category-specific patterns based on CSV variables
         category_patterns = {
-            'anesthesia': [r'anästhesie', r'sedierung', r'narkose'],
-            'medication': [r'rtpa', r'heparin', r'urokinase', r'alteplase'],
-            'device': [r'trevo', r'sofia', r'solitaire', r'penumbra'],
-            'tici_score': [r'tici\s*[0-3][abc]?'],
-            'complications': [r'perforation', r'blutung', r'hämatom', r'komplikation']
+            'anaesthesia': [r'intubationsnarkose', r'anästhesie', r'sedierung', r'narkose', r'lokalanästhesie', r'vollnarkose'],
+            'aspiration_catheter_used': [r'aspirationskatheter', r'sofia', r'penumbra', r'catch'],
+            'complications': [r'komplikationen', r'perforation', r'blutung', r'hämatom', r'nachblutung'],
+            'end_time_intervention': [r'schleuse.*entfernt', r'ende.*intervention', r'\d{1,2}:\d{2}.*ende'],
+            'extracranial_pta_stenting': [r'extrakranielle pta', r'extrakranielle.*stenting'],
+            'guide_catheter_used': [r'guide.?katheter', r'führungskatheter'],
+            'intracranial_pta_stenting': [r'intrakranielle pta', r'intrakranielle.*stenting'],
+            'microcatheter_used': [r'mikrokatheter', r'microcatheter'],
+            'number_recanalization_attempts': [r'anzahl.*manöver', r'\d+.*versuch', r'\d+.*manöver'],
+            'periprocedural_antiplatelet': [r'thrombozytenaggregationshemmung', r'aspirin', r'clopidogrel'],
+            'periprocedural_ia_thrombolysis': [r'ia.?thrombolyse', r'intra.?arterial.*thrombolyse', r'rtpa', r'alteplase'],
+            'periprocedural_spasmolytic': [r'spasmolyse', r'vasospasmen', r'nimodipin'],
+            'site_of_occlusion': [r'gefässverschlüsse', r'verschluss', r'okklusion', r'mca', r'ica'],
+            'start_time_intervention': [r'schleuse.*aufgegeben', r'beginn.*intervention', r'\d{1,2}:\d{2}.*start'],
+            'stenoses_cervical_arteries': [r'stenosen.*zervikalen', r'halsarterien.*stenose'],
+            'stent_retriever_used': [r'stent.?retriever', r'trevo', r'solitaire', r'embotrap'],
+            'tici_score': [r'tici\s*[0-3][abc]?', r'reperfusionsergebnis', r'rekanalisierung'],
+            'technique_first_maneuver': [r'technik.*manöver', r'erste.*technik'],
+            'visualisation_vessels': [r'darstellung.*gefässe', r'angiographie', r'dsa']
         }
         
         patterns = category_patterns.get(target_category, [])
@@ -117,9 +136,15 @@ class StrokeMLExtractor:
         self.models = {}
         self.vectorizers = {}
         self.feature_extractor = FeatureExtractor()
+        # Categories based on intervention_report_variables_20250612.csv
         self.categories = [
-            'anesthesia', 'medication', 'device', 'treatment_method',
-            'tici_score', 'complications'
+            'anaesthesia', 'aspiration_catheter_used', 'complications',
+            'end_time_intervention', 'extracranial_pta_stenting', 'guide_catheter_used',
+            'intracranial_pta_stenting', 'microcatheter_used', 'number_recanalization_attempts',
+            'periprocedural_antiplatelet', 'periprocedural_ia_thrombolysis', 'periprocedural_spasmolytic',
+            'site_of_occlusion', 'start_time_intervention', 'stenoses_cervical_arteries',
+            'stent_retriever_used', 'tici_score', 'technique_first_maneuver',
+            'visualisation_vessels'
         ]
         
     def prepare_training_data(self, reports_df: pd.DataFrame, 
@@ -389,6 +414,118 @@ class StrokeMLExtractor:
         print(f"✅ Loaded {len(loaded_models)} models from {model_dir}")
         return loaded_models
 
+def load_csv_variables(csv_path: str = "intervention_report_variables_20250612.csv") -> Dict[str, str]:
+    """Load variable definitions from CSV file."""
+    variables = {}
+    
+    try:
+        with open(csv_path, 'r', encoding='utf-8') as file:
+            reader = csv.DictReader(file)
+            for row in reader:
+                if row.get('Variable (EN)') and row.get('German Report Term'):
+                    variables[row['Variable (EN)']] = row['German Report Term']
+    except FileNotFoundError:
+        print(f"CSV file not found: {csv_path}")
+        return {}
+    
+    return variables
+
+def extract_csv_variables(text: str, report_id: str = None) -> Dict[str, Optional[str]]:
+    """Extract variables from text based on intervention_report_variables_20250612.csv."""
+    
+    # extractor = StrokeMLExtractor()  # Not needed for pattern-based extraction
+    results = {'report_id': report_id or 'unknown'}
+    
+    # Manual extraction patterns for each CSV variable
+    extraction_patterns = {
+        'anaesthesia': [
+            (r'intubationsnarkose', 'Intubationsnarkose'),
+            (r'allgemein.*anästhesie', 'Allgemeinanästhesie'),
+            (r'lokal.*anästhesie', 'Lokalanästhesie'),
+            (r'sedierung', 'Sedierung'),
+            (r'vollnarkose', 'Vollnarkose')
+        ],
+        'aspiration_catheter_used': [
+            (r'sofia', 'SOFIA'),
+            (r'penumbra', 'Penumbra'),
+            (r'catch.*mini', 'Catch Mini'),
+            (r'aspirationskatheter', 'Aspirationskatheter')
+        ],
+        'guide_catheter_used': [
+            (r'guide.*katheter', 'Guide-Katheter'),
+            (r'führungskatheter', 'Führungskatheter')
+        ],
+        'microcatheter_used': [
+            (r'mikrokatheter', 'Mikrokatheter'),
+            (r'microcatheter', 'Microcatheter')
+        ],
+        'stent_retriever_used': [
+            (r'trevo', 'Trevo'),
+            (r'solitaire', 'Solitaire'),
+            (r'embotrap', 'EmboTrap'),
+            (r'stent.*retriever', 'Stent-Retriever')
+        ],
+        'tici_score': [
+            (r'tici\s*([0-3][abc]?)', r'TICI \1'),
+            (r'reperfusionsergebnis.*tici\s*([0-3][abc]?)', r'TICI \1')
+        ],
+        'start_time_intervention': [
+            (r'schleuse.*aufgegeben.*?(\d{1,2}:\d{2})', r'\1'),
+            (r'beginn.*intervention.*?(\d{1,2}:\d{2})', r'\1'),
+            (r'start.*?(\d{1,2}:\d{2})', r'\1'),
+            (r'interventionsbeginn.*?(\d{1,2}:\d{2})', r'\1')
+        ],
+        'end_time_intervention': [
+            (r'schleuse.*entfernt.*?(\d{1,2}:\d{2})', r'\1'),
+            (r'ende.*intervention.*?(\d{1,2}:\d{2})', r'\1'),
+            (r'abschluss.*?(\d{1,2}:\d{2})', r'\1')
+        ],
+        'complications': [
+            (r'perforation', 'Perforation'),
+            (r'blutung', 'Blutung'),
+            (r'hämatom', 'Hämatom'),
+            (r'nachblutung', 'Nachblutung'),
+            (r'komplikationen?', 'Komplikation')
+        ],
+        'periprocedural_ia_thrombolysis': [
+            (r'ia.*thrombolyse', 'IA-Thrombolyse'),
+            (r'rtpa', 'rtPA'),
+            (r'alteplase', 'Alteplase'),
+            (r'tenecteplase', 'Tenecteplase')
+        ],
+        'periprocedural_antiplatelet': [
+            (r'thrombozytenaggregationshemmung', 'Thrombozytenaggregationshemmung'),
+            (r'aspirin', 'Aspirin'),
+            (r'clopidogrel', 'Clopidogrel')
+        ],
+        'number_recanalization_attempts': [
+            (r'(\d+).*manöver', r'\1'),
+            (r'anzahl.*manöver.*?(\d+)', r'\1')
+        ],
+        'site_of_occlusion': [
+            (r'mca', 'MCA'),
+            (r'ica', 'ICA'),
+            (r'gefäßverschluss', 'Gefäßverschluss'),
+            (r'verschluss', 'Verschluss')
+        ]
+    }
+    
+    text_lower = text.lower()
+    
+    for variable, patterns in extraction_patterns.items():
+        results[variable] = None
+        
+        for pattern, replacement in patterns:
+            match = re.search(pattern, text_lower, re.IGNORECASE)
+            if match:
+                if '\\1' in replacement:
+                    results[variable] = re.sub(pattern, replacement, match.group(0), flags=re.IGNORECASE)
+                else:
+                    results[variable] = replacement
+                break
+    
+    return results
+
 def create_sample_training_data():
     """Create sample training data for ML model development."""
     
@@ -431,57 +568,51 @@ def create_sample_training_data():
         }
     ]
     
-    # Corresponding ground truth for training
+    # Corresponding ground truth for training based on CSV variables
     training_ground_truth = [
         {
             'report_id': 'train_001',
-            'anesthesia': 'allgemeinanästhesie',
-            'medication': 'rtpa',
-            'device': 'trevo',
-            'treatment_method': 'mechanische thrombektomie',
-            'tici_score': 'tici 3',
-            'times': '08:30',
+            'anaesthesia': 'Allgemeinanästhesie',
+            'stent_retriever_used': 'Trevo',
+            'periprocedural_ia_thrombolysis': 'rtPA',
+            'tici_score': 'TICI 3',
+            'start_time_intervention': '08:30',
             'complications': None
         },
         {
             'report_id': 'train_002',
-            'anesthesia': 'sedierung',
-            'medication': 'heparin',
-            'device': 'sofia',
-            'treatment_method': 'aspiration',
-            'tici_score': 'tici 2b',
-            'times': '09:45',
-            'complications': 'blutung'
+            'anaesthesia': 'Sedierung',
+            'aspiration_catheter_used': 'SOFIA',
+            'tici_score': 'TICI 2b',
+            'start_time_intervention': '09:45',
+            'complications': 'Nachblutung'
         },
         {
             'report_id': 'train_003',
-            'anesthesia': 'lokalanästhesie',
-            'medication': 'urokinase',
-            'device': 'solitaire',
-            'treatment_method': None,
-            'tici_score': 'tici 1',
-            'times': '14:15',
-            'complications': 'perforation'
+            'anaesthesia': 'Lokalanästhesie',
+            'stent_retriever_used': 'Solitaire',
+            'periprocedural_ia_thrombolysis': 'Urokinase',
+            'tici_score': 'TICI 1',
+            'start_time_intervention': '14:15',
+            'complications': 'Perforation'
         },
         {
             'report_id': 'train_004',
-            'anesthesia': 'vollnarkose',
-            'medication': 'tenecteplase',
-            'device': 'penumbra',
-            'treatment_method': 'aspiration thrombektomie',
-            'tici_score': 'tici 2c',
-            'times': '11:20',
+            'anaesthesia': 'Vollnarkose',
+            'aspiration_catheter_used': 'Penumbra',
+            'periprocedural_ia_thrombolysis': 'Tenecteplase',
+            'tici_score': 'TICI 2c',
+            'start_time_intervention': '11:20',
             'complications': None
         },
         {
             'report_id': 'train_005',
-            'anesthesia': 'sedierung',
-            'medication': 'alteplase',
-            'device': 'catch mini',
-            'treatment_method': 'thrombolyse',
-            'tici_score': 'tici 3',
-            'times': '13:45',
-            'complications': 'blutung'
+            'anaesthesia': 'Sedierung',
+            'aspiration_catheter_used': 'Catch Mini',
+            'periprocedural_ia_thrombolysis': 'Alteplase',
+            'tici_score': 'TICI 3',
+            'start_time_intervention': '13:45',
+            'complications': 'Blutung'
         }
     ]
     
@@ -499,6 +630,29 @@ def create_sample_training_data():
     print(f"  📊 Ground Truth: data/training/training_ground_truth.csv")
     
     return reports_df, ground_truth_df
+
+def test_csv_variable_extraction():
+    """Test the CSV variable extraction function."""
+    
+    print("📊 Testing CSV Variable Extraction")
+    print("=" * 50)
+    
+    # Test with sample report text
+    test_text = """Patient mit akutem ischämischem Schlaganfall. Allgemeinanästhesie eingeleitet.
+                   Interventionsbeginn: 08:30 Uhr. rtPA bereits präklinisch verabreicht.
+                   Mechanische Thrombektomie mit Trevo Stentretriever durchgeführt.
+                   TICI 3 Rekanalisierung erreicht. Keine intraoperativen Komplikationen."""
+    
+    results = extract_csv_variables(test_text, "test_001")
+    
+    print(f"\n🧪 Extraction Results:")
+    for variable, value in results.items():
+        if value is not None:
+            print(f"  ✅ {variable}: {value}")
+        else:
+            print(f"  ❌ {variable}: Not found")
+    
+    return results
 
 def train_ml_models_example():
     """Example of training ML models."""
@@ -520,26 +674,28 @@ def train_ml_models_example():
     print(f"  Successful models: {training_results['successful_models']}")
     
     # Save models
-    saved_models = ml_extractor.save_models()
+    ml_extractor.save_models()
     
-    # Test extraction
-    test_text = """Patient mit Schlaganfall. Allgemeinanästhesie verwendet.
-                   Beginn: 10:30 Uhr. rtPA verabreicht. Trevo System eingesetzt.
-                   TICI 3 erreicht. Keine Komplikationen."""
+    # Test CSV variable extraction
+    test_results = test_csv_variable_extraction()
     
-    results = ml_extractor.extract_with_ml(test_text, "test_001")
-    
-    print(f"\n🧪 Test Extraction Results:")
-    for category, value in results.items():
-        if category not in ['report_id', 'text_length']:
-            print(f"  {category}: {value}")
-    
-    return ml_extractor, training_results
+    return ml_extractor, training_results, test_results
 
 if __name__ == "__main__":
-    # Run ML training example
-    ml_extractor, results = train_ml_models_example()
+    # Test CSV variable extraction
+    test_results = test_csv_variable_extraction()
     
-    print("\n🎉 ML model training complete!")
-    print("💾 Models saved to models/ directory")
-    print("🔬 Ready for advanced extraction!")
+    print("\n🎉 CSV variable extraction ready!")
+    print("🔍 Use extract_csv_variables() function to extract variables from reports")
+    
+    # Example usage with different report
+    print("\n📋 Example with different report:")
+    sample_report = """Sedierung für Eingriff. Start 14:30 Uhr. 
+                       SOFIA Aspiration verwendet. Perforation aufgetreten. 
+                       TICI 2b erreicht."""
+    
+    example_results = extract_csv_variables(sample_report, "example_001")
+    print("Results:")
+    for var, val in example_results.items():
+        if val:
+            print(f"  ✅ {var}: {val}")

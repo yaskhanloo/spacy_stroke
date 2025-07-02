@@ -175,29 +175,74 @@ def display_extraction_results(results, method_name):
     col1, col2 = st.columns(2)
     
     with col1:
-        # Left column
-        if results.get('anesthesia'):
-            st.success(f"**Anesthesia:** {results['anesthesia']}")
+        # Left column - Basic info
+        if results.get('anaesthesia'):
+            st.success(f"**Anaesthesia:** {results['anaesthesia']}")
         
-        if results.get('medication'):
-            st.info(f"**Medication:** {results['medication']}")
+        if results.get('periprocedural_ia_thrombolysis'):
+            st.info(f"**IA Thrombolysis:** {results['periprocedural_ia_thrombolysis']}")
         
-        if results.get('device'):
-            st.info(f"**Device:** {results['device']}")
+        if results.get('periprocedural_antiplatelet'):
+            st.info(f"**Antiplatelet:** {results['periprocedural_antiplatelet']}")
         
-        if results.get('treatment_method'):
-            st.info(f"**Treatment:** {results['treatment_method']}")
+        if results.get('site_of_occlusion'):
+            st.info(f"**Occlusion Site:** {results['site_of_occlusion']}")
+        
+        if results.get('stenoses_cervical_arteries'):
+            st.info(f"**Cervical Stenoses:** {results['stenoses_cervical_arteries']}")
     
     with col2:
-        # Right column
+        # Right column - Devices and outcomes
+        if results.get('aspiration_catheter_used'):
+            st.info(f"**Aspiration Catheter:** {results['aspiration_catheter_used']}")
+        
+        if results.get('stent_retriever_used'):
+            st.info(f"**Stent Retriever:** {results['stent_retriever_used']}")
+        
+        if results.get('guide_catheter_used'):
+            st.info(f"**Guide Catheter:** {results['guide_catheter_used']}")
+        
+        if results.get('microcatheter_used'):
+            st.info(f"**Microcatheter:** {results['microcatheter_used']}")
+        
         if results.get('tici_score'):
             st.warning(f"**TICI Score:** {results['tici_score']}")
+    
+    # Second row for additional info
+    col3, col4 = st.columns(2)
+    
+    with col3:
+        if results.get('start_time_intervention'):
+            st.info(f"**Start Time:** {results['start_time_intervention']}")
         
-        if results.get('times'):
-            st.info(f"**Times:** {results['times']}")
+        if results.get('end_time_intervention'):
+            st.info(f"**End Time:** {results['end_time_intervention']}")
+        
+        if results.get('technique_first_maneuver'):
+            st.info(f"**First Technique:** {results['technique_first_maneuver']}")
+    
+    with col4:
+        if results.get('number_recanalization_attempts'):
+            st.info(f"**Recanalization Attempts:** {results['number_recanalization_attempts']}")
+        
+        if results.get('periprocedural_spasmolytic'):
+            st.info(f"**Spasmolytic:** {results['periprocedural_spasmolytic']}")
         
         if results.get('complications'):
             st.error(f"**Complications:** {results['complications']}")
+    
+    # Additional procedures
+    if results.get('extracranial_pta_stenting') or results.get('intracranial_pta_stenting') or results.get('visualisation_vessels'):
+        st.subheader("🔧 Additional Procedures")
+        
+        if results.get('extracranial_pta_stenting'):
+            st.info(f"**Extracranial PTA/Stenting:** {results['extracranial_pta_stenting']}")
+        
+        if results.get('intracranial_pta_stenting'):
+            st.info(f"**Intracranial PTA/Stenting:** {results['intracranial_pta_stenting']}")
+        
+        if results.get('visualisation_vessels'):
+            st.info(f"**Vessel Visualisation:** {results['visualisation_vessels']}")
     
     # Show as DataFrame
     results_df = pd.DataFrame([results])
@@ -339,7 +384,7 @@ def show_extraction_page(preprocessor, rule_extractor, ml_extractor, ml_availabl
     # Input options
     input_method = st.radio(
         "Choose input method:",
-        ["📝 Text Input", "📁 Upload PDF", "📄 Upload Text File"]
+        ["📝 Text Input", "📁 Upload PDF", "📄 Upload Text File", "📑 Upload Word Document"]
     )
     
     input_text = ""
@@ -396,6 +441,33 @@ TICI 3 Rekanalisierung erreicht. Keine intraoperativen Komplikationen."""
         if uploaded_txt:
             input_text = uploaded_txt.read().decode('utf-8')
             st.success(f"✅ Loaded {len(input_text.split())} words from text file")
+    
+    elif input_method == "📑 Upload Word Document":
+        uploaded_docx = st.file_uploader("Upload Word document", type=['docx'])
+        
+        if uploaded_docx:
+            with st.spinner("Extracting text from Word document..."):
+                try:
+                    # Save uploaded file temporarily
+                    with tempfile.NamedTemporaryFile(delete=False, suffix='.docx') as tmp_file:
+                        tmp_file.write(uploaded_docx.read())
+                        tmp_path = tmp_file.name
+                    
+                    # Extract text
+                    extracted_text = preprocessor.extract_text_from_docx(tmp_path)
+                    input_text = extracted_text
+                    
+                    # Show extraction preview
+                    st.success(f"✅ Extracted {len(extracted_text.split())} words from Word document")
+                    
+                    with st.expander("📖 Preview extracted text"):
+                        st.text_area("Extracted text:", extracted_text[:1000] + "..." if len(extracted_text) > 1000 else extracted_text, height=150)
+                    
+                    # Clean up
+                    os.unlink(tmp_path)
+                    
+                except Exception as e:
+                    st.error(f"Word document extraction failed: {e}")
     
     # Extraction options
     st.subheader("🔧 Extraction Options")
@@ -706,12 +778,12 @@ def show_batch_processing_page(preprocessor, rule_extractor, ml_extractor, ml_av
     
     st.header("🔬 Batch Processing")
     
-    st.info("📁 Process multiple files at once (PDF, TXT, or CSV)")
+    st.info("📁 Process multiple files at once (PDF, TXT, DOCX, or CSV)")
     
     # File upload
     uploaded_files = st.file_uploader(
         "Upload files for batch processing",
-        type=['pdf', 'txt', 'csv'],
+        type=['pdf', 'txt', 'docx', 'csv'],
         accept_multiple_files=True
     )
     
@@ -748,6 +820,15 @@ def show_batch_processing_page(preprocessor, rule_extractor, ml_extractor, ml_av
                             
                         elif uploaded_file.name.endswith('.txt'):
                             text = uploaded_file.read().decode('utf-8')
+                            
+                        elif uploaded_file.name.endswith('.docx'):
+                            # Save temporarily and extract
+                            with tempfile.NamedTemporaryFile(delete=False, suffix='.docx') as tmp_file:
+                                tmp_file.write(uploaded_file.read())
+                                tmp_path = tmp_file.name
+                            
+                            text = preprocessor.extract_text_from_docx(tmp_path)
+                            os.unlink(tmp_path)
                             
                         elif uploaded_file.name.endswith('.csv'):
                             # Handle CSV with text column
@@ -860,13 +941,22 @@ def show_documentation_page():
     st.subheader("📋 Extracted Variables")
     
     variables_df = pd.DataFrame([
-        {'Variable': 'anesthesia', 'Description': 'Type of anesthesia used', 'Examples': 'allgemeinanästhesie, sedierung, lokalanästhesie'},
-        {'Variable': 'medication', 'Description': 'Medications administered', 'Examples': 'rtpa, heparin, urokinase, tenecteplase'},
-        {'Variable': 'device', 'Description': 'Medical devices used', 'Examples': 'trevo, sofia, solitaire, penumbra'},
-        {'Variable': 'treatment_method', 'Description': 'Treatment approach', 'Examples': 'thrombektomie, aspiration, stentretriever'},
+        {'Variable': 'anaesthesia', 'Description': 'Type of anesthesia used', 'Examples': 'allgemeinanästhesie, sedierung, lokalanästhesie'},
+        {'Variable': 'aspiration_catheter_used', 'Description': 'Aspiration catheter used', 'Examples': 'sofia, penumbra, catch mini'},
+        {'Variable': 'guide_catheter_used', 'Description': 'Guide catheter used', 'Examples': 'guidekatheter, führungskatheter'},
+        {'Variable': 'microcatheter_used', 'Description': 'Microcatheter used', 'Examples': 'mikrokatheter, microcatheter'},
+        {'Variable': 'stent_retriever_used', 'Description': 'Stent retriever used', 'Examples': 'trevo, solitaire, embotrap'},
         {'Variable': 'tici_score', 'Description': 'TICI recanalization score', 'Examples': 'tici 3, tici 2b, tici 1'},
-        {'Variable': 'times', 'Description': 'Procedure timestamps', 'Examples': '08:32, 09:15, 14:30'},
-        {'Variable': 'complications', 'Description': 'Reported complications', 'Examples': 'perforation, blutung, hämatom'}
+        {'Variable': 'periprocedural_ia_thrombolysis', 'Description': 'Intra-arterial thrombolysis', 'Examples': 'rtpa, alteplase, tenecteplase'},
+        {'Variable': 'periprocedural_antiplatelet', 'Description': 'Antiplatelet therapy', 'Examples': 'aspirin, clopidogrel'},
+        {'Variable': 'complications', 'Description': 'Reported complications', 'Examples': 'perforation, blutung, hämatom'},
+        {'Variable': 'site_of_occlusion', 'Description': 'Location of vessel occlusion', 'Examples': 'mca, ica, gefäßverschluss'},
+        {'Variable': 'stenoses_cervical_arteries', 'Description': 'Cervical artery stenoses', 'Examples': 'halsarterien stenose'},
+        {'Variable': 'start_time_intervention', 'Description': 'Intervention start time', 'Examples': '08:30, 09:15'},
+        {'Variable': 'end_time_intervention', 'Description': 'Intervention end time', 'Examples': '10:45, 11:30'},
+        {'Variable': 'technique_first_maneuver', 'Description': 'First maneuver technique', 'Examples': 'erste technik'},
+        {'Variable': 'number_recanalization_attempts', 'Description': 'Number of recanalization attempts', 'Examples': '3 manöver, 2 attempts'},
+        {'Variable': 'periprocedural_spasmolytic', 'Description': 'Spasmolytic therapy', 'Examples': 'nimodipin, vasospasmus'}
     ])
     
     st.dataframe(variables_df, use_container_width=True)

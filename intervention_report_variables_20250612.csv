@@ -1,0 +1,20 @@
+Variable (EN),German Report Term,Category
+Anaesthesia,Intubationsnarkose / Notiz: Anästhesie,Core
+Aspiration catheter used,Verwendeter Aspirationskatheter,Additional
+Complications,Komplikationen,Core
+End-time of intervention,Schleuse Arteriell A. Femoralis Rechts 5 Fr. entfernt,Core
+Extracranial PTA / stenting,Extrakranielle PTA / Stenting,Core
+Guide catheter used,Verwendeter Guide-Katheter,Additional
+Intracranial PTA / stenting,Intrakranielle PTA / Stenting,Core
+Microcatheter used,Verwendeter Mikrokatheter,Additional
+Number of recanalization attempts,Anzahl der Manöver,Core
+Periprocedural medication: Antiplatelet therapy,Thrombozytenaggregationshemmung,Core
+Periprocedural medication: Intra-arterial thrombolysis,IA-Thrombolyse,Core
+Periprocedural medication: Spasmolytic medication,Spasmolyse bei Vasospasmen,Core
+Site of occlusion,Abgrenzbare Gefässverschlüsse,Core
+Start-time of intervention,Schleuse Arteriell A. Femoralis Rechts 5 Fr. aufgegeben,Core
+Stenoses of the cervical arteries,Stenosen der zervikalen Arterien,Core
+Stent retriever used,Verwendeter Stent-Retriever,Additional
+TICI score,Finales Reperfusionsergebnis,Core
+Technique first maneuver,Technik erstes Manöver,Core
+Visualisation of the following vessels,Darstellung folgender Gefässe,Core

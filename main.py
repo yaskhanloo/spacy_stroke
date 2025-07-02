@@ -1,6 +1,7 @@
 import os
 import pandas as pd
 from pathlib import Path
+from typing import Dict
 from extractor.preprocessing import TextPreprocessor
 from extractor.keyword_rules import KeywordExtractor
 from extractor.spacy_ner_wrapper import SpacyNERExtractor
@@ -139,7 +140,11 @@ def main():
         processor.save_results(results_df)
         
         print("\n📊 Results Summary:")
-        print(results_df[['report_id', 'anesthesia', 'device', 'medication', 'tici_score', 'times']].to_string())
+        # Display key CSV variables that are most likely to be present
+        display_columns = ['report_id', 'anaesthesia', 'stent_retriever_used', 'aspiration_catheter_used', 
+                          'periprocedural_ia_thrombolysis', 'tici_score', 'start_time_intervention', 'complications']
+        available_columns = [col for col in display_columns if col in results_df.columns]
+        print(results_df[available_columns].to_string())
     
     # Also process CSV if it exists
     if Path("data/sample_reports.csv").exists():

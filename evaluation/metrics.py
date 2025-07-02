@@ -12,9 +12,46 @@ class AccuracyMetrics:
     
     def __init__(self):
         self.categories = [
-            'anesthesia', 'medication', 'device', 'treatment_method',
-            'tici_score', 'times', 'complications'
+            'anaesthesia', 'aspiration_catheter_used', 'guide_catheter_used', 'microcatheter_used',
+            'stent_retriever_used', 'tici_score', 'periprocedural_ia_thrombolysis', 
+            'periprocedural_antiplatelet', 'complications', 'site_of_occlusion',
+            'stenoses_cervical_arteries', 'extracranial_pta_stenting', 'intracranial_pta_stenting',
+            'technique_first_maneuver', 'visualisation_vessels', 'number_recanalization_attempts',
+            'periprocedural_spasmolytic', 'start_time_intervention', 'end_time_intervention'
         ]
+    
+    def _is_null_or_empty(self, value):
+        """Check if a value is null, empty, or an empty list/array."""
+        if value is None:
+            return True
+        if isinstance(value, (list, np.ndarray)):
+            if len(value) == 0:
+                return True
+            # Check if all elements in the array/list are NaN
+            try:
+                return all(pd.isna(v) for v in value)
+            except (TypeError, ValueError):
+                return False
+        try:
+            if pd.isna(value):
+                return True
+        except (TypeError, ValueError):
+            # pd.isna() can fail on some types, treat as not null
+            pass
+        if isinstance(value, str) and value.strip() == '':
+            return True
+        return False
+    
+    def _value_to_string(self, value):
+        """Convert a value (including lists/arrays) to a string representation."""
+        if isinstance(value, (list, np.ndarray)):
+            if len(value) == 0:
+                return ""
+            elif len(value) == 1:
+                return str(value[0])
+            else:
+                return ", ".join(str(v) for v in value)
+        return str(value)
     
     def calculate_binary_metrics(self, y_true: List[bool], y_pred: List[bool]) -> Dict[str, float]:
         """Calculate precision, recall, F1 for binary classification."""
@@ -63,20 +100,26 @@ class AccuracyMetrics:
                 results[category] = {'precision': 0.0, 'recall': 0.0, 'f1': 0.0, 'note': 'Category missing'}
                 continue
             
-            # Convert to binary (present/absent)
-            y_pred = pred_subset[category].notna().tolist()
-            y_true = truth_subset[category].notna().tolist()
+            # Convert to binary (present/absent) - handle arrays properly
+            y_pred = [not self._is_null_or_empty(val) for val in pred_subset[category]]
+            y_true = [not self._is_null_or_empty(val) for val in truth_subset[category]]
             
             # Calculate exact match accuracy for non-null values
             exact_matches = []
             for pred_val, true_val in zip(pred_subset[category], truth_subset[category]):
-                if pd.isna(true_val) and pd.isna(pred_val):
+                # Handle array/list values by converting to string representation
+                pred_is_null = self._is_null_or_empty(pred_val)
+                true_is_null = self._is_null_or_empty(true_val)
+                
+                if true_is_null and pred_is_null:
                     exact_matches.append(True)  # Both are null
-                elif pd.isna(true_val) or pd.isna(pred_val):
+                elif true_is_null or pred_is_null:
                     exact_matches.append(False)  # One is null, other isn't
                 else:
                     # Both have values - check if they match (case insensitive)
-                    exact_matches.append(str(pred_val).lower().strip() == str(true_val).lower().strip())
+                    pred_str = self._value_to_string(pred_val)
+                    true_str = self._value_to_string(true_val)
+                    exact_matches.append(pred_str.lower().strip() == true_str.lower().strip())
             
             # Binary presence/absence metrics
             binary_metrics = self.calculate_binary_metrics(y_true, y_pred)
@@ -207,16 +250,24 @@ class AccuracyMetrics:
                 report_id = pred_subset.iloc[idx]['report_id']
                 
                 # False positive: predicted something, but ground truth is null
-                if pd.notna(pred_val) and pd.isna(true_val):
-                    errors['false_positives'].append(f"{category}:{report_id} - predicted '{pred_val}' but should be null")
+                pred_has_value = not self._is_null_or_empty(pred_val)
+                true_has_value = not self._is_null_or_empty(true_val)
+                
+                if pred_has_value and not true_has_value:
+                    pred_str = self._value_to_string(pred_val)
+                    errors['false_positives'].append(f"{category}:{report_id} - predicted '{pred_str}' but should be null")
                 
                 # False negative: didn't predict, but ground truth has value
-                elif pd.isna(pred_val) and pd.notna(true_val):
-                    errors['false_negatives'].append(f"{category}:{report_id} - missed '{true_val}'")
+                elif not pred_has_value and true_has_value:
+                    true_str = self._value_to_string(true_val)
+                    errors['false_negatives'].append(f"{category}:{report_id} - missed '{true_str}'")
                 
                 # Misclassification: both have values but they don't match
-                elif pd.notna(pred_val) and pd.notna(true_val) and str(pred_val).lower() != str(true_val).lower():
-                    errors['misclassifications'].append(f"{category}:{report_id} - predicted '{pred_val}' but should be '{true_val}'")
+                elif pred_has_value and true_has_value:
+                    pred_str = self._value_to_string(pred_val)
+                    true_str = self._value_to_string(true_val)
+                    if pred_str.lower().strip() != true_str.lower().strip():
+                        errors['misclassifications'].append(f"{category}:{report_id} - predicted '{pred_str}' but should be '{true_str}'")
         
         return errors
     

@@ -6,6 +6,7 @@ import PyPDF2
 import pdfplumber
 from pathlib import Path
 import io
+from docx import Document
 
 class TextPreprocessor:
     """Handles text cleaning and preprocessing for stroke reports."""
@@ -97,6 +98,42 @@ class TextPreprocessor:
             raise RuntimeError(f"Error extracting PDF with PyPDF2: {e}")
         
         return extracted_text.strip()
+    
+    def extract_text_from_docx(self, docx_path: str) -> str:
+        """
+        Extract text from Word document (.docx).
+        
+        Args:
+            docx_path: Path to Word document file
+            
+        Returns:
+            Extracted text as string
+        """
+        docx_path = Path(docx_path)
+        if not docx_path.exists():
+            raise FileNotFoundError(f"Word document not found: {docx_path}")
+        
+        try:
+            doc = Document(docx_path)
+            extracted_text = ""
+            
+            # Extract text from paragraphs
+            for paragraph in doc.paragraphs:
+                if paragraph.text.strip():
+                    extracted_text += paragraph.text + "\n"
+            
+            # Extract text from tables
+            for table in doc.tables:
+                for row in table.rows:
+                    for cell in row.cells:
+                        if cell.text.strip():
+                            extracted_text += cell.text + " "
+                    extracted_text += "\n"
+            
+            return extracted_text.strip()
+            
+        except Exception as e:
+            raise RuntimeError(f"Error extracting Word document: {e}")
     
     def process_pdf_batch(self, pdf_folder: str, output_folder: str = None) -> List[Dict[str, str]]:
         """

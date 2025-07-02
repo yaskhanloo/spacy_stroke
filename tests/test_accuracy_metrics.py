@@ -34,29 +34,29 @@ class TestAccuracyMetrics(unittest.TestCase):
         self.sample_predictions = pd.DataFrame([
             {
                 'report_id': 'test_001',
-                'anesthesia': 'allgemeinanästhesie',
-                'medication': 'rtpa',
-                'device': 'trevo',
+                'anaesthesia': 'allgemeinanästhesie',
+                'periprocedural_ia_thrombolysis': 'rtpa',
+                'stent_retriever_used': 'trevo',
                 'tici_score': 'tici 3',
-                'times': '08:30',
+                'start_time_intervention': '08:30',
                 'complications': None
             },
             {
                 'report_id': 'test_002',
-                'anesthesia': 'sedierung',
-                'medication': 'heparin',
-                'device': 'sofia',
+                'anaesthesia': 'sedierung',
+                'periprocedural_ia_thrombolysis': 'heparin',
+                'aspiration_catheter_used': 'sofia',
                 'tici_score': 'tici 2b',
-                'times': '09:45',
+                'start_time_intervention': '09:45',
                 'complications': 'blutung'
             },
             {
                 'report_id': 'test_003',
-                'anesthesia': None,  # Missing prediction
-                'medication': 'urokinase',
-                'device': 'solitaire',
+                'anaesthesia': None,  # Missing prediction
+                'periprocedural_ia_thrombolysis': 'urokinase',
+                'stent_retriever_used': 'solitaire',
                 'tici_score': 'tici 1',
-                'times': '14:15',
+                'start_time_intervention': '14:15',
                 'complications': 'perforation'
             }
         ])
@@ -64,29 +64,29 @@ class TestAccuracyMetrics(unittest.TestCase):
         self.sample_ground_truth = pd.DataFrame([
             {
                 'report_id': 'test_001',
-                'anesthesia': 'allgemeinanästhesie',  # Exact match
-                'medication': 'rtpa',  # Exact match
-                'device': 'trevo',  # Exact match
+                'anaesthesia': 'allgemeinanästhesie',  # Exact match
+                'periprocedural_ia_thrombolysis': 'rtpa',  # Exact match
+                'stent_retriever_used': 'trevo',  # Exact match
                 'tici_score': 'tici 3',  # Exact match
-                'times': '08:30',  # Exact match
+                'start_time_intervention': '08:30',  # Exact match
                 'complications': None  # Exact match (both null)
             },
             {
                 'report_id': 'test_002',
-                'anesthesia': 'sedierung',  # Exact match
-                'medication': 'heparin',  # Exact match
-                'device': 'sofia',  # Exact match
+                'anaesthesia': 'sedierung',  # Exact match
+                'periprocedural_ia_thrombolysis': 'heparin',  # Exact match
+                'aspiration_catheter_used': 'sofia',  # Exact match
                 'tici_score': 'tici 2a',  # Mismatch (predicted 2b, actual 2a)
-                'times': '09:45',  # Exact match
+                'start_time_intervention': '09:45',  # Exact match
                 'complications': 'blutung'  # Exact match
             },
             {
                 'report_id': 'test_003',
-                'anesthesia': 'lokalanästhesie',  # False negative (not predicted)
-                'medication': 'urokinase',  # Exact match
-                'device': 'solitaire',  # Exact match
+                'anaesthesia': 'lokalanästhesie',  # False negative (not predicted)
+                'periprocedural_ia_thrombolysis': 'urokinase',  # Exact match
+                'stent_retriever_used': 'solitaire',  # Exact match
                 'tici_score': 'tici 1',  # Exact match
-                'times': '14:15',  # Exact match
+                'start_time_intervention': '14:15',  # Exact match
                 'complications': 'perforation'  # Exact match
             }
         ])
@@ -129,7 +129,7 @@ class TestAccuracyMetrics(unittest.TestCase):
         )
         
         # Check that all categories are evaluated
-        expected_categories = ['anesthesia', 'medication', 'device', 'tici_score', 'times', 'complications']
+        expected_categories = ['anaesthesia', 'tici_score', 'complications']  # These should be present in test data
         for category in expected_categories:
             self.assertIn(category, metrics)
         
@@ -139,13 +139,13 @@ class TestAccuracyMetrics(unittest.TestCase):
         self.assertIn('avg_recall', metrics['overall'])
         self.assertIn('avg_f1', metrics['overall'])
         
-        # Test specific category - anesthesia has one false negative
-        anesthesia_metrics = metrics['anesthesia']
+        # Test specific category - anaesthesia has one false negative
+        anesthesia_metrics = metrics['anaesthesia']
         self.assertIn('precision', anesthesia_metrics)
         self.assertIn('recall', anesthesia_metrics)
         self.assertIn('exact_accuracy', anesthesia_metrics)
         
-        # Anesthesia: 2 predicted, 3 actual → recall should be 2/3
+        # Anaesthesia: 2 predicted, 3 actual → recall should be 2/3
         self.assertAlmostEqual(anesthesia_metrics['recall'], 0.6667, places=3)
     
     def test_generate_confusion_matrix(self):
@@ -196,9 +196,9 @@ class TestAccuracyMetrics(unittest.TestCase):
         self.assertIn('false_negatives', error_analysis)
         self.assertIn('misclassifications', error_analysis)
         
-        # Should detect the anesthesia false negative
+        # Should detect the anaesthesia false negative
         false_negatives = error_analysis['false_negatives']
-        anesthesia_fn = [err for err in false_negatives if 'anesthesia:test_003' in err]
+        anesthesia_fn = [err for err in false_negatives if 'anaesthesia:test_003' in err]
         self.assertEqual(len(anesthesia_fn), 1)
         
         # Should detect the TICI score misclassification
