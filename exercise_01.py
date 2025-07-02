@@ -31,19 +31,19 @@ def exercise_1_regex_basics():
     exercises = [
         {
             'description': 'Match literal "tici" (case insensitive)',
-            'pattern': r'',  # YOUR PATTERN HERE
+            'pattern': r'\btici\b',
             'should_match': ['TICI', 'tici', 'Tici'],
             'should_not_match': ['criticize', 'ticillin']
         },
         {
             'description': 'Match "tici" followed by a space and a number',
-            'pattern': r'',  # YOUR PATTERN HERE
+            'pattern': r'\btici\s+\d\b',  # YOUR PATTERN HERE
             'should_match': ['TICI 3', 'tici 2'],
             'should_not_match': ['TICI', 'TICIx']
         },
         {
             'description': 'Match TICI scores: "tici" + optional space + number + optional letter',
-            'pattern': r'',  # YOUR PATTERN HERE
+            'pattern': r'\btici\s*[0-9][a-z]?\b',  # YOUR PATTERN HERE
             'should_match': ['TICI 3', 'tici2a', 'TICI 1b', 'tici 0'],
             'should_not_match': ['TICI 4', 'criticize']
         }

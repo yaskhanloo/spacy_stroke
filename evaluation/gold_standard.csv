@@ -1,0 +1,26 @@
+report_id,anesthesia,medication,device,treatment_method,tici_score,times,complications
+val_001,allgemeinanästhesie,rtpa,trevo,mechanische thrombektomie,tici 3,08:30,
+val_002,sedierung,heparin,sofia,aspiration,tici 2b,09:45,blutung
+val_003,lokalanästhesie,urokinase,solitaire,,tici 1,14:15,perforation
+val_004,vollnarkose,tenecteplase,penumbra,aspiration thrombektomie,tici 2c,11:20,
+val_005,sedierung,alteplase,catch mini,thrombolyse,tici 3,13:45,blutung
+gs_001,allgemeinanästhesie,rtpa,trevo,thrombektomie,tici 3,08:32,
+gs_002,sedierung,heparin,sofia,aspiration,tici 2b,09:15,blutung
+gs_003,lokalanästhesie,urokinase,solitaire,mechanische rekanalisation,tici 1,10:20,perforation
+gs_004,vollnarkose,tenecteplase,penumbra,aspiration,tici 2c,11:20,
+gs_005,sedierung,alteplase,embotrap,,tici 3,13:45,
+gs_006,allgemeinanästhesie,rtpa,trevo,stentretriever,tici 2a,07:45,
+gs_007,sedierung,,sofia,aspiration,tici 2b,14:30,hämatom
+gs_008,lokalanästhesie,heparin,solitaire,thrombektomie,tici 1,16:15,blutung
+gs_009,allgemeinanästhesie,rtpa,catch mini,mechanische thrombektomie,tici 3,09:30,
+gs_010,sedierung,urokinase,penumbra,aspiration,tici 2c,12:45,
+gs_011,vollnarkose,alteplase,trevo,stentretriever,tici 3,08:15,
+gs_012,lokalanästhesie,,embotrap,rekanalisation,tici 1,15:20,perforation
+gs_013,sedierung,heparin,sofia,aspiration,tici 2b,10:45,
+gs_014,allgemeinanästhesie,rtpa,solitaire,mechanische thrombektomie,tici 3,11:30,
+gs_015,sedierung,tenecteplase,penumbra,aspiration thrombektomie,tici 2c,14:00,blutung
+gs_016,lokalanästhesie,urokinase,catch mini,,tici 1,16:45,hämatom
+gs_017,vollnarkose,rtpa,trevo,stentretriever,tici 2a,07:30,
+gs_018,sedierung,heparin,sofia,aspiration,tici 2b,13:15,
+gs_019,allgemeinanästhesie,alteplase,embotrap,mechanische rekanalisation,tici 3,09:00,
+gs_020,lokalanästhesie,,solitaire,thrombektomie,tici 1,17:30,perforation

@@ -1,23 +1,76 @@
-# ===== streamlit_app.py =====
+#!/usr/bin/env python3
+"""
+Advanced Streamlit app for German Stroke Radiology Report NLP Extraction.
+
+Features:
+- Rule-based and ML model extraction
+- PDF processing
+- Model training and evaluation
+- Accuracy metrics visualization
+- Batch processing
+"""
+
 import streamlit as st
 import pandas as pd
+import numpy as np
 from pathlib import Path
 import sys
 import os
+import json
+import tempfile
+import plotly.express as px
+import plotly.graph_objects as go
+from io import StringIO
 
 # Add the current directory to path so we can import our modules
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from extractor.preprocessing import TextPreprocessor
-from extractor.keyword_rules import KeywordExtractor
-from extractor.spacy_ner_wrapper import SpacyNERExtractor
+try:
+    from extractor.preprocessing import TextPreprocessor
+    from extractor.keyword_rules import KeywordExtractor
+    from extractor.spacy_ner_wrapper import SpacyNERExtractor
+    from extractor.ml_model import StrokeMLExtractor, create_sample_training_data
+    from evaluation.metrics import AccuracyMetrics
+    from evaluation.validation import ModelValidator, create_sample_validation_set
+    from train_model import TrainingPipeline
+    from evaluate_model import ModelEvaluator
+except ImportError as e:
+    st.error(f"Import error: {e}")
+    st.info("Please ensure all dependencies are installed: pip install -r requirements.txt")
 
 # Configure Streamlit page
 st.set_page_config(
-    page_title="Stroke Report Keyword Extractor",
+    page_title="🧠 Advanced Stroke NLP Extractor",
     page_icon="🧠",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
+
+# Custom CSS for better styling
+st.markdown("""
+<style>
+    .main-header {
+        font-size: 2.5rem;
+        color: #1f77b4;
+        text-align: center;
+        margin-bottom: 2rem;
+    }
+    .metric-card {
+        background-color: #f0f2f6;
+        padding: 1rem;
+        border-radius: 0.5rem;
+        margin: 0.5rem 0;
+    }
+    .success-metric {
+        background-color: #d4edda;
+        border-left: 4px solid #28a745;
+    }
+    .warning-metric {
+        background-color: #fff3cd;
+        border-left: 4px solid #ffc107;
+    }
+</style>
+""", unsafe_allow_html=True)
 
 @st.cache_resource
 def load_processors():
@@ -26,256 +79,852 @@ def load_processors():
         preprocessor = TextPreprocessor()
         keyword_extractor = KeywordExtractor()
         ner_extractor = SpacyNERExtractor()
-        return preprocessor, keyword_extractor, ner_extractor
+        ml_extractor = StrokeMLExtractor()
+        
+        # Try to load ML models if available
+        try:
+            ml_extractor.load_models("models/")
+            ml_available = True
+        except:
+            ml_available = False
+            
+        return preprocessor, keyword_extractor, ner_extractor, ml_extractor, ml_available
     except Exception as e:
         st.error(f"Error loading NLP models: {e}")
         st.info("Please install the German spaCy model: `python -m spacy download de_core_news_sm`")
-        return None, None, None
+        return None, None, None, None, False
 
-def process_text(text, preprocessor, keyword_extractor, ner_extractor):
-    """Process a single text and return results."""
-    # Preprocess
+@st.cache_data
+def load_sample_data():
+    """Load sample validation data."""
+    try:
+        reports_df, truth_df = create_sample_validation_set()
+        return reports_df, truth_df
+    except Exception as e:
+        st.error(f"Error loading sample data: {e}")
+        return None, None
+
+def extract_text_from_pdf_files(uploaded_files, preprocessor):
+    """Extract text from uploaded PDF files."""
+    extracted_texts = []
+    
+    for uploaded_file in uploaded_files:
+        try:
+            # Save uploaded file temporarily
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp_file:
+                tmp_file.write(uploaded_file.read())
+                tmp_path = tmp_file.name
+            
+            # Extract text
+            extracted_text = preprocessor.extract_text_from_pdf(tmp_path)
+            cleaned_text = preprocessor.clean_text(extracted_text)
+            
+            extracted_texts.append({
+                'filename': uploaded_file.name,
+                'raw_text': extracted_text,
+                'cleaned_text': cleaned_text,
+                'word_count': len(cleaned_text.split()) if cleaned_text else 0
+            })
+            
+            # Clean up temporary file
+            os.unlink(tmp_path)
+            
+        except Exception as e:
+            st.error(f"Error processing {uploaded_file.name}: {e}")
+            extracted_texts.append({
+                'filename': uploaded_file.name,
+                'error': str(e),
+                'raw_text': None,
+                'cleaned_text': None
+            })
+    
+    return extracted_texts
+
+def process_single_report(text, report_id, preprocessor, rule_extractor, ml_extractor, use_ml):
+    """Process a single report with both rule-based and ML extraction."""
+    # Preprocess text
     cleaned_text = preprocessor.clean_text(text)
     
-    # Extract keywords
-    keyword_results = keyword_extractor.extract_all(cleaned_text)
+    # Rule-based extraction
+    rule_results = rule_extractor.extract_all(cleaned_text, report_id)
     
-    # Extract NER entities
-    entities = ner_extractor.extract_entities(cleaned_text)
-    
-    # Extract noun phrases
-    noun_phrases = ner_extractor.extract_noun_phrases(cleaned_text)
+    # ML extraction if available
+    ml_results = None
+    if use_ml and ml_extractor.models:
+        try:
+            ml_results = ml_extractor.extract_with_ml(cleaned_text, report_id)
+        except Exception as e:
+            st.warning(f"ML extraction failed: {e}")
     
     return {
         'cleaned_text': cleaned_text,
-        'keyword_results': keyword_results,
-        'entities': entities,
-        'noun_phrases': noun_phrases
+        'rule_results': rule_results,
+        'ml_results': ml_results,
+        'original_text': text
     }
 
+def display_extraction_results(results, method_name):
+    """Display extraction results in a formatted way."""
+    if not results:
+        st.warning(f"No {method_name} results available")
+        return
+    
+    st.subheader(f"🎯 {method_name} Results")
+    
+    # Create columns for better layout
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        # Left column
+        if results.get('anesthesia'):
+            st.success(f"**Anesthesia:** {results['anesthesia']}")
+        
+        if results.get('medication'):
+            st.info(f"**Medication:** {results['medication']}")
+        
+        if results.get('device'):
+            st.info(f"**Device:** {results['device']}")
+        
+        if results.get('treatment_method'):
+            st.info(f"**Treatment:** {results['treatment_method']}")
+    
+    with col2:
+        # Right column
+        if results.get('tici_score'):
+            st.warning(f"**TICI Score:** {results['tici_score']}")
+        
+        if results.get('times'):
+            st.info(f"**Times:** {results['times']}")
+        
+        if results.get('complications'):
+            st.error(f"**Complications:** {results['complications']}")
+    
+    # Show as DataFrame
+    results_df = pd.DataFrame([results])
+    st.dataframe(results_df, use_container_width=True)
+
+def create_performance_visualization(metrics_data):
+    """Create performance visualization plots."""
+    if not metrics_data:
+        return None
+    
+    # Extract metrics for plotting
+    categories = []
+    f1_scores = []
+    precision_scores = []
+    recall_scores = []
+    
+    for category, metrics in metrics_data.items():
+        if category != 'overall' and isinstance(metrics, dict):
+            categories.append(category.title())
+            f1_scores.append(metrics.get('f1', 0))
+            precision_scores.append(metrics.get('precision', 0))
+            recall_scores.append(metrics.get('recall', 0))
+    
+    if not categories:
+        return None
+    
+    # Create radar chart
+    fig = go.Figure()
+    
+    # Add F1 scores
+    fig.add_trace(go.Scatterpolar(
+        r=f1_scores,
+        theta=categories,
+        fill='toself',
+        name='F1 Score',
+        line_color='blue'
+    ))
+    
+    # Add Precision scores
+    fig.add_trace(go.Scatterpolar(
+        r=precision_scores,
+        theta=categories,
+        fill='toself',
+        name='Precision',
+        line_color='green'
+    ))
+    
+    # Add Recall scores
+    fig.add_trace(go.Scatterpolar(
+        r=recall_scores,
+        theta=categories,
+        fill='toself',
+        name='Recall',
+        line_color='red'
+    ))
+    
+    fig.update_layout(
+        polar=dict(
+            radialaxis=dict(
+                visible=True,
+                range=[0, 1]
+            )),
+        title="Model Performance by Category",
+        showlegend=True
+    )
+    
+    return fig
+
 def main():
-    # Title and description
-    st.title("🧠 Stroke Report Keyword Extractor")
-    st.markdown("**Classical NLP Pipeline for German Medical Reports**")
+    # Main title
+    st.markdown('<h1 class="main-header">🧠 Advanced German Stroke NLP Extractor</h1>', unsafe_allow_html=True)
+    st.markdown("**Hybrid NLP System: Rule-Based + Machine Learning + PDF Processing**")
     
     # Load processors
-    preprocessor, keyword_extractor, ner_extractor = load_processors()
+    preprocessor, rule_extractor, ner_extractor, ml_extractor, ml_available = load_processors()
     
-    if not all([preprocessor, keyword_extractor, ner_extractor]):
+    if not all([preprocessor, rule_extractor, ner_extractor]):
+        st.error("Failed to load core NLP components. Please check your installation.")
         st.stop()
     
-    # Sidebar with instructions
+    # Sidebar navigation
     with st.sidebar:
-        st.header("ℹ️ Instructions")
-        st.markdown("""
-        1. **Enter Text**: Paste a German stroke report in the text area
-        2. **Process**: Click the button to extract keywords
-        3. **Review**: Check the results in different tabs
-        4. **Download**: Export results as CSV
+        st.header("🚀 Navigation")
         
-        **Categories Extracted:**
-        - Anesthesia types
-        - Medications
-        - Treatment methods  
-        - Medical devices
-        - TICI scores
-        - Times
-        - Complications
-        """)
+        page = st.selectbox(
+            "Choose a page:",
+            [
+                "📄 Report Extraction",
+                "📊 Model Training",
+                "📈 Model Evaluation", 
+                "🔬 Batch Processing",
+                "📚 Documentation"
+            ]
+        )
         
-        st.header("📝 Sample Text")
-        if st.button("Load Sample Report"):
-            sample_text = """
-            Patient wurde in Allgemeinanästhesie behandelt. Beginn der Intervention um 08:32 Uhr.
-            Verwendung des Trevo Stentretriever Systems. rtPA wurde um 07:45 verabreicht.
-            Mechanische Thrombektomie mit SOFIA Katheter durchgeführt.
-            Finales Ergebnis: TICI 3. Keine Komplikationen aufgetreten.
-            """
-            st.session_state.sample_text = sample_text
+        st.markdown("---")
+        st.header("ℹ️ System Status")
+        
+        # System status indicators
+        st.success("✅ Rule-based Model")
+        if ml_available:
+            st.success("✅ ML Models Loaded")
+        else:
+            st.warning("⚠️ ML Models Not Available")
+        
+        st.info(f"📦 spaCy Model: {'✅' if ner_extractor else '❌'}")
+        
+        st.markdown("---")
+        st.header("📝 Quick Actions")
+        
+        if st.button("🔄 Reload Models"):
+            st.cache_resource.clear()
+            st.rerun()
+        
+        if st.button("📊 Load Sample Data"):
+            st.session_state.load_sample = True
+
+    # Main content based on selected page
+    if page == "📄 Report Extraction":
+        show_extraction_page(preprocessor, rule_extractor, ml_extractor, ml_available)
     
-    # Main input area
-    st.header("📄 Input Report")
+    elif page == "📊 Model Training":
+        show_training_page()
     
-    # Get initial text from sample if available
-    initial_text = st.session_state.get('sample_text', '')
+    elif page == "📈 Model Evaluation":
+        show_evaluation_page()
     
-    # Text input
-    input_text = st.text_area(
-        "Enter German stroke report:",
-        value=initial_text,
-        height=200,
-        placeholder="Paste your German medical report here..."
+    elif page == "🔬 Batch Processing":
+        show_batch_processing_page(preprocessor, rule_extractor, ml_extractor, ml_available)
+    
+    elif page == "📚 Documentation":
+        show_documentation_page()
+
+def show_extraction_page(preprocessor, rule_extractor, ml_extractor, ml_available):
+    """Show the main extraction interface."""
+    
+    st.header("📄 Single Report Extraction")
+    
+    # Input options
+    input_method = st.radio(
+        "Choose input method:",
+        ["📝 Text Input", "📁 Upload PDF", "📄 Upload Text File"]
     )
     
-    # File upload option
-    st.subheader("📁 Or Upload Files")
-    uploaded_files = st.file_uploader(
-        "Upload text files",
-        type=['txt'],
-        accept_multiple_files=True
-    )
+    input_text = ""
+    
+    if input_method == "📝 Text Input":
+        # Sample text button
+        col1, col2 = st.columns([3, 1])
+        
+        with col2:
+            if st.button("📋 Load Sample"):
+                sample_text = """Patient mit akutem ischämischem Schlaganfall. Allgemeinanästhesie eingeleitet.
+Interventionsbeginn: 08:30 Uhr. rtPA bereits präklinisch verabreicht.
+Mechanische Thrombektomie mit Trevo Stentretriever durchgeführt.
+TICI 3 Rekanalisierung erreicht. Keine intraoperativen Komplikationen."""
+                st.session_state.sample_text = sample_text
+        
+        input_text = st.text_area(
+            "Enter German stroke report:",
+            value=st.session_state.get('sample_text', ''),
+            height=200,
+            placeholder="Paste your German medical report here..."
+        )
+    
+    elif input_method == "📁 Upload PDF":
+        uploaded_pdf = st.file_uploader("Upload PDF file", type=['pdf'])
+        
+        if uploaded_pdf:
+            with st.spinner("Extracting text from PDF..."):
+                try:
+                    # Save uploaded file temporarily
+                    with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp_file:
+                        tmp_file.write(uploaded_pdf.read())
+                        tmp_path = tmp_file.name
+                    
+                    # Extract text
+                    extracted_text = preprocessor.extract_text_from_pdf(tmp_path)
+                    input_text = extracted_text
+                    
+                    # Show extraction preview
+                    st.success(f"✅ Extracted {len(extracted_text.split())} words from PDF")
+                    
+                    with st.expander("📖 Preview extracted text"):
+                        st.text_area("Extracted text:", extracted_text[:1000] + "..." if len(extracted_text) > 1000 else extracted_text, height=150)
+                    
+                    # Clean up
+                    os.unlink(tmp_path)
+                    
+                except Exception as e:
+                    st.error(f"PDF extraction failed: {e}")
+    
+    elif input_method == "📄 Upload Text File":
+        uploaded_txt = st.file_uploader("Upload text file", type=['txt'])
+        
+        if uploaded_txt:
+            input_text = uploaded_txt.read().decode('utf-8')
+            st.success(f"✅ Loaded {len(input_text.split())} words from text file")
+    
+    # Extraction options
+    st.subheader("🔧 Extraction Options")
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        use_rule_based = st.checkbox("🔧 Rule-based Extraction", value=True)
+    with col2:
+        use_ml = st.checkbox("🤖 ML Extraction", value=ml_available, disabled=not ml_available)
     
     # Process button
-    if st.button("🔍 Extract Keywords", type="primary"):
-        if input_text.strip():
-            with st.spinner("Processing report..."):
-                # Process the input text
-                results = process_text(input_text, preprocessor, keyword_extractor, ner_extractor)
-                st.session_state.results = results
-                st.session_state.processed_text = input_text
-        elif uploaded_files:
-            with st.spinner("Processing uploaded files..."):
-                all_results = []
-                for uploaded_file in uploaded_files:
-                    text = uploaded_file.read().decode('utf-8')
-                    result = process_text(text, preprocessor, keyword_extractor, ner_extractor)
-                    result['filename'] = uploaded_file.name
-                    all_results.append(result)
-                st.session_state.uploaded_results = all_results
-        else:
-            st.warning("Please enter text or upload files to process.")
+    if st.button("🔍 Extract Information", type="primary") and input_text.strip():
+        with st.spinner("Processing report..."):
+            
+            results = process_single_report(
+                input_text, "manual_input", preprocessor, 
+                rule_extractor, ml_extractor, use_ml
+            )
+            
+            st.session_state.extraction_results = results
     
-    # Display results if available
-    if 'results' in st.session_state:
+    # Display results
+    if 'extraction_results' in st.session_state:
+        results = st.session_state.extraction_results
+        
         st.header("📊 Extraction Results")
-        results = st.session_state.results
         
-        # Create tabs for different views
-        tab1, tab2, tab3, tab4 = st.tabs(["Keywords", "Text Processing", "Named Entities", "Export"])
+        # Create tabs for different results
+        tabs = []
+        if use_rule_based:
+            tabs.append("🔧 Rule-based")
+        if use_ml and results['ml_results']:
+            tabs.append("🤖 ML Model")
+        tabs.extend(["📝 Text Processing", "📤 Export"])
         
-        with tab1:
-            st.subheader("🎯 Extracted Keywords")
-            
-            # Display in columns
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                keyword_results = results['keyword_results']
-                
-                # Anesthesia
-                if keyword_results.get('anesthesia'):
-                    st.success(f"**Anesthesia:** {keyword_results['anesthesia']}")
-                
-                # Medication
-                if keyword_results.get('medication'):
-                    st.info(f"**Medication:** {keyword_results['medication']}")
-                
-                # Treatment method
-                if keyword_results.get('treatment_method'):
-                    st.info(f"**Treatment:** {keyword_results['treatment_method']}")
-                
-                # Device
-                if keyword_results.get('device'):
-                    st.info(f"**Device:** {keyword_results['device']}")
-            
-            with col2:
-                # TICI Score
-                if keyword_results.get('tici_score'):
-                    st.warning(f"**TICI Score:** {keyword_results['tici_score']}")
-                
-                # Times
-                if keyword_results.get('times'):
-                    st.info(f"**Times:** {keyword_results['times']}")
-                
-                # Complications
-                if keyword_results.get('complications'):
-                    st.error(f"**Complications:** {keyword_results['complications']}")
-            
-            # Full results table
-            st.subheader("📋 Complete Results")
-            results_df = pd.DataFrame([keyword_results])
-            st.dataframe(results_df, use_container_width=True)
+        tab_objects = st.tabs(tabs)
+        tab_index = 0
         
-        with tab2:
+        # Rule-based results
+        if use_rule_based:
+            with tab_objects[tab_index]:
+                display_extraction_results(results['rule_results'], "Rule-based")
+            tab_index += 1
+        
+        # ML results
+        if use_ml and results['ml_results']:
+            with tab_objects[tab_index]:
+                display_extraction_results(results['ml_results'], "ML Model")
+            tab_index += 1
+        
+        # Text processing tab
+        with tab_objects[tab_index]:
             st.subheader("🧹 Text Processing")
             
             col1, col2 = st.columns(2)
             
             with col1:
                 st.write("**Original Text:**")
-                st.text_area("", st.session_state.processed_text, height=200, disabled=True)
+                st.text_area("", results['original_text'][:500] + "..." if len(results['original_text']) > 500 else results['original_text'], height=200, disabled=True)
             
             with col2:
                 st.write("**Cleaned Text:**")
-                st.text_area("", results['cleaned_text'], height=200, disabled=True)
-            
-            # Noun phrases
-            st.subheader("📝 Extracted Noun Phrases")
-            if results['noun_phrases']:
-                for i, phrase in enumerate(results['noun_phrases'][:10]):  # Show first 10
-                    st.code(phrase)
-            else:
-                st.info("No significant noun phrases found.")
+                st.text_area("", results['cleaned_text'][:500] + "..." if len(results['cleaned_text']) > 500 else results['cleaned_text'], height=200, disabled=True)
         
-        with tab3:
-            st.subheader("🏷️ Named Entities (spaCy)")
-            
-            if results['entities']:
-                entities_df = pd.DataFrame(results['entities'])
-                st.dataframe(entities_df, use_container_width=True)
-                
-                # Entity visualization
-                st.subheader("📊 Entity Distribution")
-                entity_counts = entities_df['label'].value_counts()
-                st.bar_chart(entity_counts)
-            else:
-                st.info("No named entities found.")
+        tab_index += 1
         
-        with tab4:
+        # Export tab
+        with tab_objects[tab_index]:
             st.subheader("💾 Export Results")
             
-            # Convert to DataFrame for export
-            export_df = pd.DataFrame([results['keyword_results']])
+            # Prepare export data
+            export_data = {}
+            if use_rule_based:
+                export_data.update(results['rule_results'])
             
-            # CSV download
-            csv = export_df.to_csv(index=False)
-            st.download_button(
-                label="📄 Download as CSV",
-                data=csv,
-                file_name="stroke_report_extraction.csv",
-                mime="text/csv"
-            )
+            if use_ml and results['ml_results']:
+                for key, value in results['ml_results'].items():
+                    if key not in export_data:
+                        export_data[f"ml_{key}"] = value
             
-            # JSON download
-            import json
-            json_data = json.dumps(results['keyword_results'], indent=2, ensure_ascii=False)
-            st.download_button(
-                label="📄 Download as JSON",
-                data=json_data,
-                file_name="stroke_report_extraction.json",
-                mime="application/json"
-            )
+            export_df = pd.DataFrame([export_data])
             
-            st.info("💡 Tip: You can process multiple reports and combine the CSV files for batch analysis.")
+            # Download buttons
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                csv = export_df.to_csv(index=False)
+                st.download_button(
+                    label="📄 Download CSV",
+                    data=csv,
+                    file_name="stroke_extraction_results.csv",
+                    mime="text/csv"
+                )
+            
+            with col2:
+                json_data = json.dumps(export_data, indent=2, ensure_ascii=False)
+                st.download_button(
+                    label="📄 Download JSON",
+                    data=json_data,
+                    file_name="stroke_extraction_results.json",
+                    mime="application/json"
+                )
+
+def show_training_page():
+    """Show the model training interface."""
     
-    # Display uploaded file results
-    if 'uploaded_results' in st.session_state:
-        st.header("📁 Batch Processing Results")
-        
-        uploaded_results = st.session_state.uploaded_results
-        
-        # Create summary DataFrame
-        summary_data = []
-        for result in uploaded_results:
-            summary_row = result['keyword_results'].copy()
-            summary_row['filename'] = result['filename']
-            summary_data.append(summary_row)
-        
-        summary_df = pd.DataFrame(summary_data)
-        st.dataframe(summary_df, use_container_width=True)
-        
-        # Download batch results
-        batch_csv = summary_df.to_csv(index=False)
-        st.download_button(
-            label="📄 Download Batch Results as CSV",
-            data=batch_csv,
-            file_name="batch_stroke_reports_extraction.csv",
-            mime="text/csv"
-        )
+    st.header("📊 Model Training")
     
-    # Footer
-    st.markdown("---")
-    st.markdown("**🧪 Stroke Report Keyword Extractor** | Built with Classical NLP & spaCy")
+    st.info("🚀 Train hybrid NLP models on your stroke radiology reports")
+    
+    # Training options
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.subheader("📁 Training Data")
+        
+        use_sample_data = st.checkbox("Use sample training data", value=True)
+        
+        if not use_sample_data:
+            training_reports = st.file_uploader("Training reports CSV", type=['csv'])
+            training_ground_truth = st.file_uploader("Training ground truth CSV", type=['csv'])
+        
+        validation_folds = st.slider("Cross-validation folds", 3, 10, 5)
+    
+    with col2:
+        st.subheader("🔧 Model Options")
+        
+        train_rule_based = st.checkbox("Evaluate rule-based model", value=True)
+        train_ml_models = st.checkbox("Train ML models", value=True)
+        generate_plots = st.checkbox("Generate performance plots", value=True)
+    
+    # Start training
+    if st.button("🚀 Start Training", type="primary"):
+        with st.spinner("Training models... This may take a few minutes."):
+            
+            try:
+                # Initialize training pipeline
+                config = {
+                    'training': {'validation_folds': validation_folds},
+                    'models': {
+                        'rule_based': train_rule_based,
+                        'ml_models': train_ml_models
+                    },
+                    'evaluation': {'plot_metrics': generate_plots}
+                }
+                
+                pipeline = TrainingPipeline(config)
+                
+                # Run training
+                training_results = pipeline.run_full_training_pipeline()
+                
+                st.session_state.training_results = training_results
+                
+                st.success("✅ Training completed successfully!")
+                
+            except Exception as e:
+                st.error(f"Training failed: {e}")
+                st.exception(e)
+    
+    # Display training results
+    if 'training_results' in st.session_state:
+        results = st.session_state.training_results
+        
+        st.header("📈 Training Results")
+        
+        # Overall performance metrics
+        if 'comparison' in results:
+            comparison = results['comparison']
+            
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                if 'rule_based' in comparison:
+                    st.metric(
+                        "Rule-based F1",
+                        f"{comparison['rule_based']['overall_f1']:.3f}",
+                        delta=None
+                    )
+            
+            with col2:
+                if 'ml_based' in comparison:
+                    st.metric(
+                        "ML Model F1",
+                        f"{comparison['ml_based']['overall_f1']:.3f}",
+                        delta=None
+                    )
+            
+            with col3:
+                if 'best_model' in comparison:
+                    st.metric(
+                        "Best Model",
+                        comparison['best_model']['name'].title(),
+                        delta=None
+                    )
+            
+            # Recommendations
+            if 'recommendations' in comparison:
+                st.subheader("💡 Recommendations")
+                for rec in comparison['recommendations']:
+                    st.write(f"• {rec}")
+
+def show_evaluation_page():
+    """Show the model evaluation interface."""
+    
+    st.header("📈 Model Evaluation")
+    
+    st.info("🔬 Evaluate model performance against ground truth data")
+    
+    # Evaluation options
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.subheader("📊 Test Data")
+        
+        use_sample_test = st.checkbox("Use sample test data", value=True)
+        
+        if not use_sample_test:
+            test_reports = st.file_uploader("Test reports CSV", type=['csv'])
+            test_ground_truth = st.file_uploader("Test ground truth CSV", type=['csv'])
+    
+    with col2:
+        st.subheader("🔧 Evaluation Options")
+        
+        evaluate_rule_based = st.checkbox("Evaluate rule-based model", value=True)
+        evaluate_ml = st.checkbox("Evaluate ML model", value=True)
+        generate_detailed_report = st.checkbox("Generate detailed analysis", value=True)
+    
+    # Run evaluation
+    if st.button("📊 Run Evaluation", type="primary"):
+        with st.spinner("Evaluating models..."):
+            
+            try:
+                if use_sample_test:
+                    # Load sample validation data
+                    reports_df, truth_df = load_sample_data()
+                    
+                    if reports_df is not None and truth_df is not None:
+                        evaluator = ModelEvaluator()
+                        
+                        # Save sample data temporarily
+                        with tempfile.TemporaryDirectory() as temp_dir:
+                            reports_path = f"{temp_dir}/test_reports.csv"
+                            truth_path = f"{temp_dir}/test_ground_truth.csv"
+                            
+                            reports_df.to_csv(reports_path, index=False)
+                            truth_df.to_csv(truth_path, index=False)
+                            
+                            # Run evaluation
+                            evaluation_results = evaluator.run_comprehensive_evaluation(
+                                reports_path, truth_path, generate_detailed_report
+                            )
+                            
+                            st.session_state.evaluation_results = evaluation_results
+                
+                st.success("✅ Evaluation completed!")
+                
+            except Exception as e:
+                st.error(f"Evaluation failed: {e}")
+                st.exception(e)
+    
+    # Display evaluation results
+    if 'evaluation_results' in st.session_state:
+        results = st.session_state.evaluation_results
+        
+        st.header("📊 Evaluation Results")
+        
+        # Performance metrics
+        if 'comparison' in results:
+            comparison = results['comparison']
+            
+            # Create performance visualization
+            if 'rule_based' in results and 'error' not in results['rule_based']:
+                rule_metrics = results['rule_based']['metrics']
+                fig = create_performance_visualization(rule_metrics)
+                
+                if fig:
+                    st.plotly_chart(fig, use_container_width=True)
+            
+            # Summary table
+            st.subheader("📋 Performance Summary")
+            
+            summary_data = []
+            
+            if 'rule_based' in comparison:
+                summary_data.append({
+                    'Model': 'Rule-based',
+                    'F1 Score': f"{comparison['rule_based']['f1_score']:.3f}",
+                    'Precision': f"{comparison['rule_based']['precision']:.3f}",
+                    'Recall': f"{comparison['rule_based']['recall']:.3f}",
+                    'Processing Time (s)': f"{comparison['rule_based']['avg_processing_time']:.4f}"
+                })
+            
+            if 'ml_based' in comparison:
+                summary_data.append({
+                    'Model': 'ML-based',
+                    'F1 Score': f"{comparison['ml_based']['f1_score']:.3f}",
+                    'Precision': f"{comparison['ml_based']['precision']:.3f}",
+                    'Recall': f"{comparison['ml_based']['recall']:.3f}",
+                    'Processing Time (s)': f"{comparison['ml_based']['avg_processing_time']:.4f}"
+                })
+            
+            if summary_data:
+                summary_df = pd.DataFrame(summary_data)
+                st.dataframe(summary_df, use_container_width=True)
+
+def show_batch_processing_page(preprocessor, rule_extractor, ml_extractor, ml_available):
+    """Show the batch processing interface."""
+    
+    st.header("🔬 Batch Processing")
+    
+    st.info("📁 Process multiple files at once (PDF, TXT, or CSV)")
+    
+    # File upload
+    uploaded_files = st.file_uploader(
+        "Upload files for batch processing",
+        type=['pdf', 'txt', 'csv'],
+        accept_multiple_files=True
+    )
+    
+    if uploaded_files:
+        st.success(f"✅ {len(uploaded_files)} files uploaded")
+        
+        # Processing options
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            use_rule_based = st.checkbox("🔧 Rule-based extraction", value=True)
+        with col2:
+            use_ml = st.checkbox("🤖 ML extraction", value=ml_available, disabled=not ml_available)
+        
+        # Process files
+        if st.button("🚀 Process All Files", type="primary"):
+            with st.spinner("Processing files..."):
+                
+                batch_results = []
+                
+                for i, uploaded_file in enumerate(uploaded_files):
+                    st.write(f"Processing {uploaded_file.name}...")
+                    
+                    try:
+                        # Extract text based on file type
+                        if uploaded_file.name.endswith('.pdf'):
+                            # Save temporarily and extract
+                            with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp_file:
+                                tmp_file.write(uploaded_file.read())
+                                tmp_path = tmp_file.name
+                            
+                            text = preprocessor.extract_text_from_pdf(tmp_path)
+                            os.unlink(tmp_path)
+                            
+                        elif uploaded_file.name.endswith('.txt'):
+                            text = uploaded_file.read().decode('utf-8')
+                            
+                        elif uploaded_file.name.endswith('.csv'):
+                            # Handle CSV with text column
+                            df = pd.read_csv(uploaded_file)
+                            if 'text' in df.columns:
+                                # Process each row
+                                for idx, row in df.iterrows():
+                                    text = row['text']
+                                    report_id = row.get('report_id', f"{uploaded_file.name}_{idx}")
+                                    
+                                    result = process_single_report(
+                                        text, report_id, preprocessor,
+                                        rule_extractor, ml_extractor, use_ml
+                                    )
+                                    
+                                    result['filename'] = uploaded_file.name
+                                    result['row_index'] = idx
+                                    batch_results.append(result)
+                                
+                                continue
+                            else:
+                                st.error(f"CSV file {uploaded_file.name} missing 'text' column")
+                                continue
+                        
+                        # Process single file
+                        result = process_single_report(
+                            text, uploaded_file.name, preprocessor,
+                            rule_extractor, ml_extractor, use_ml
+                        )
+                        
+                        result['filename'] = uploaded_file.name
+                        batch_results.append(result)
+                        
+                    except Exception as e:
+                        st.error(f"Error processing {uploaded_file.name}: {e}")
+                
+                st.session_state.batch_results = batch_results
+                st.success(f"✅ Processed {len(batch_results)} items")
+        
+        # Display batch results
+        if 'batch_results' in st.session_state:
+            results = st.session_state.batch_results
+            
+            st.header("📊 Batch Processing Results")
+            
+            # Create summary table
+            summary_data = []
+            
+            for result in results:
+                row = {'filename': result['filename']}
+                
+                if use_rule_based and result['rule_results']:
+                    row.update({f"rule_{k}": v for k, v in result['rule_results'].items() 
+                               if k not in ['report_id', 'text_length']})
+                
+                if use_ml and result.get('ml_results'):
+                    row.update({f"ml_{k}": v for k, v in result['ml_results'].items() 
+                               if k not in ['report_id', 'text_length']})
+                
+                summary_data.append(row)
+            
+            if summary_data:
+                summary_df = pd.DataFrame(summary_data)
+                st.dataframe(summary_df, use_container_width=True)
+                
+                # Download batch results
+                csv_data = summary_df.to_csv(index=False)
+                st.download_button(
+                    label="📄 Download Batch Results",
+                    data=csv_data,
+                    file_name="batch_stroke_extraction_results.csv",
+                    mime="text/csv"
+                )
+
+def show_documentation_page():
+    """Show documentation and help."""
+    
+    st.header("📚 Documentation")
+    
+    # Quick start guide
+    st.subheader("🚀 Quick Start Guide")
+    
+    st.markdown("""
+    ### 1. Single Report Extraction
+    - Go to **📄 Report Extraction**
+    - Input text manually, upload PDF, or upload text file
+    - Choose extraction method (Rule-based, ML, or both)
+    - Click **🔍 Extract Information**
+    
+    ### 2. Model Training
+    - Go to **📊 Model Training**
+    - Configure training options
+    - Click **🚀 Start Training**
+    - Review performance metrics and recommendations
+    
+    ### 3. Model Evaluation
+    - Go to **📈 Model Evaluation**
+    - Upload test data or use sample data
+    - Click **📊 Run Evaluation**
+    - Analyze detailed performance metrics
+    
+    ### 4. Batch Processing
+    - Go to **🔬 Batch Processing**
+    - Upload multiple PDF, TXT, or CSV files
+    - Choose extraction methods
+    - Download results as CSV
+    """)
+    
+    # Extracted variables
+    st.subheader("📋 Extracted Variables")
+    
+    variables_df = pd.DataFrame([
+        {'Variable': 'anesthesia', 'Description': 'Type of anesthesia used', 'Examples': 'allgemeinanästhesie, sedierung, lokalanästhesie'},
+        {'Variable': 'medication', 'Description': 'Medications administered', 'Examples': 'rtpa, heparin, urokinase, tenecteplase'},
+        {'Variable': 'device', 'Description': 'Medical devices used', 'Examples': 'trevo, sofia, solitaire, penumbra'},
+        {'Variable': 'treatment_method', 'Description': 'Treatment approach', 'Examples': 'thrombektomie, aspiration, stentretriever'},
+        {'Variable': 'tici_score', 'Description': 'TICI recanalization score', 'Examples': 'tici 3, tici 2b, tici 1'},
+        {'Variable': 'times', 'Description': 'Procedure timestamps', 'Examples': '08:32, 09:15, 14:30'},
+        {'Variable': 'complications', 'Description': 'Reported complications', 'Examples': 'perforation, blutung, hämatom'}
+    ])
+    
+    st.dataframe(variables_df, use_container_width=True)
+    
+    # Installation instructions
+    st.subheader("🔧 Installation & Setup")
+    
+    st.code("""
+# 1. Install dependencies
+pip install -r requirements.txt
+
+# 2. Download German spaCy model
+python -m spacy download de_core_news_sm
+
+# 3. Run Streamlit app
+streamlit run streamlit_app.py
+    """, language="bash")
+    
+    # Command line usage
+    st.subheader("💻 Command Line Usage")
+    
+    st.code("""
+# Train models
+python train_model.py --data data/training/ --validation data/validation/
+
+# Evaluate models
+python evaluate_model.py --test-reports data/test/reports.csv --test-ground-truth data/test/truth.csv
+
+# Run tests
+python tests/test_keyword_extractor.py
+python tests/test_accuracy_metrics.py
+    """, language="bash")
+    
+    # Troubleshooting
+    st.subheader("🔍 Troubleshooting")
+    
+    with st.expander("Common Issues"):
+        st.markdown("""
+        **spaCy model not found:**
+        - Run: `python -m spacy download de_core_news_sm`
+        
+        **Import errors:**
+        - Ensure all dependencies are installed: `pip install -r requirements.txt`
+        
+        **ML models not loading:**
+        - Train models first using the training page or command line
+        
+        **PDF extraction fails:**
+        - Try different PDF files or convert to text manually
+        
+        **Performance issues:**
+        - Use smaller batch sizes for large datasets
+        - Consider using rule-based only for faster processing
+        """)
+
+# Footer
+st.markdown("---")
+st.markdown("**🧠 Advanced German Stroke NLP Extractor** | Built with Streamlit, spaCy & scikit-learn")
 
 if __name__ == "__main__":
     main()
