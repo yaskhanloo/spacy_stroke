@@ -1,0 +1,6 @@
+report_id,anaesthesia,stent_retriever_used,periprocedural_ia_thrombolysis,tici_score,start_time_intervention,complications,aspiration_catheter_used
+train_001,Allgemeinanästhesie,Trevo,rtPA,TICI 3,08:30,,
+train_002,Sedierung,,,TICI 2b,09:45,Nachblutung,SOFIA
+train_003,Lokalanästhesie,Solitaire,Urokinase,TICI 1,14:15,Perforation,
+train_004,Vollnarkose,,Tenecteplase,TICI 2c,11:20,,Penumbra
+train_005,Sedierung,,Alteplase,TICI 3,13:45,Blutung,Catch Mini

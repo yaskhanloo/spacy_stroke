@@ -1,0 +1,17 @@
+report_id,text
+val_001,"Patient mit akutem Schlaganfall. Allgemeinanästhesie für Intervention.
+                      Beginn: 08:30 Uhr. rtPA bereits verabreicht. Trevo Stentretriever eingesetzt.
+                      Mechanische Thrombektomie durchgeführt. TICI 3 Rekanalisierung erreicht.
+                      Keine Komplikationen beobachtet."
+val_002,"67-jähriger Patient, Sedierung für Prozedur. Start um 09:45.
+                      SOFIA Aspiration system used. Heparin als Antikoagulation.
+                      Leichte Blutung nach Intervention. TICI 2b Ergebnis."
+val_003,"Lokalanästhesie für den Eingriff. Interventionsbeginn: 14:15 Uhr.
+                      Solitaire device für mechanische Thrombektomie. Urokinase verabreicht.
+                      Perforation der Arterie aufgetreten. TICI 1 erreicht."
+val_004,"Patient in Vollnarkose. Penumbra System verwendet. Beginn: 11:20.
+                      Aspiration thrombectomy performed. Tenecteplase given.
+                      Erfolgreiche Rekanalisierung. TICI 2c Ergebnis. Kein Hämatom."
+val_005,"Sedierung für Intervention. Catch Mini device eingesetzt.
+                      Start der Prozedur: 13:45 Uhr. Alteplase thrombolysis.
+                      Embotrap als backup. Minimale Blutung. TICI 3 erreicht."

@@ -1,0 +1,6 @@
+report_id,anesthesia,medication,device,treatment_method,tici_score,times,complications
+val_001,allgemeinanästhesie,rtpa,trevo,thrombektomie,tici 3,08:30,
+val_002,sedierung,heparin,sofia,aspiration,tici 2b,09:45,blutung
+val_003,lokalanästhesie,urokinase,solitaire,thrombektomie,tici 1,14:15,perforation
+val_004,vollnarkose,tenecteplase,penumbra,aspiration,tici 2c,11:20,
+val_005,sedierung,alteplase,catch mini,,tici 3,13:45,blutung

@@ -1,7 +1,7 @@
 import os
 import pandas as pd
 from pathlib import Path
-from typing import Dict
+from typing import Dict, Optional
 from extractor.preprocessing import TextPreprocessor
 from extractor.keyword_rules import KeywordExtractor
 from extractor.spacy_ner_wrapper import SpacyNERExtractor
@@ -17,7 +17,7 @@ class StrokeReportProcessor:
         # Ensure output directory exists
         Path("output").mkdir(exist_ok=True)
     
-    def process_single_report(self, text: str, report_id: str = None) -> Dict:
+    def process_single_report(self, text: str, report_id: Optional[str] = None) -> Dict:
         """Process a single report and extract keywords."""
         # Preprocess text
         cleaned_text = self.preprocessor.clean_text(text)
@@ -50,7 +50,7 @@ class StrokeReportProcessor:
         
         return pd.DataFrame(results)
     
-    def process_csv_reports(self, csv_path: str, text_column: str, id_column: str = None) -> pd.DataFrame:
+    def process_csv_reports(self, csv_path: str, text_column: str, id_column: Optional[str] = None) -> pd.DataFrame:
         """Process reports from a CSV file."""
         df = pd.read_csv(csv_path)
         results = []
@@ -154,41 +154,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-# ===== Setup Instructions =====
-"""
-🚀 SETUP INSTRUCTIONS:
-
-1. Install dependencies:
-   pip install spacy pandas streamlit jupyter
-   python -m spacy download de_core_news_sm
-
-2. Create project structure:
-   mkdir stroke_nlp_project
-   cd stroke_nlp_project
-   mkdir -p data/raw_reports extractor output notebooks
-
-3. Save this code as separate files according to the structure
-
-4. Run the project:
-   python main.py
-
-5. Optional - Create Streamlit app:
-   streamlit run streamlit_app.py
-
-The processor will:
-- Create sample German stroke reports if none exist
-- Extract keywords using rule-based patterns
-- Use spaCy for additional NER and POS tagging
-- Output structured CSV files with all extracted information
-- Provide confidence scores and context for each extraction
-
-Key Features:
-✅ German medical terminology support
-✅ Rule-based extraction with high precision
-✅ spaCy integration for enhanced NLP
-✅ Extensible pattern system
-✅ CSV and folder input support
-✅ Structured output with confidence scores
-✅ Context preservation for manual review
-"""

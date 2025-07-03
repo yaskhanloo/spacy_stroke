@@ -1,4 +1,57 @@
+# Virtual environments
 .nlp_venv/
-data/
+venv/
+.venv/
+env/
 
-.DS_Storebrew
+# Data files (keep structure but ignore content)
+data/raw_reports/
+data/sample_reports.csv
+
+# Output files
+output/
+models/
+*.pkl
+*.joblib
+
+# System files
+.DS_Store
+*/.DS_Store
+**/.DS_Store
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Logs
+*.log
+
+# Temporary files
+tmp/
+temp/
+*.tmp
