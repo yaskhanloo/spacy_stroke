@@ -171,42 +171,81 @@ def display_extraction_results(results, method_name):
     
     st.subheader(f"🎯 {method_name} Results")
     
+    # Display confidence scores and review priority if available
+    if 'confidence_scores' in results and 'manual_review_priority' in results:
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            avg_confidence = sum(score for score in results['confidence_scores'].values() if score > 0) / max(1, len([s for s in results['confidence_scores'].values() if s > 0]))
+            st.metric("Average Confidence", f"{avg_confidence:.2%}")
+        
+        with col2:
+            priority = results['manual_review_priority']
+            priority_color = {"high": "🔴", "medium": "🟡", "low": "🟢"}
+            st.metric("Review Priority", f"{priority_color.get(priority, '🔵')} {priority.title()}")
+        
+        with col3:
+            extraction_count = len([v for v in results.values() if v is not None and v != '' and not isinstance(v, (dict, list))])
+            st.metric("Extractions Found", extraction_count)
+        
+        st.markdown("---")
+    
     # Create columns for better layout
     col1, col2 = st.columns(2)
     
     with col1:
-        # Left column - Basic info
+        # Left column - Basic info with confidence indicators
         if results.get('anaesthesia'):
-            st.success(f"**Anaesthesia:** {results['anaesthesia']}")
+            confidence = results.get('confidence_scores', {}).get('anaesthesia', 0)
+            confidence_icon = "🟢" if confidence > 0.8 else "🟡" if confidence > 0.5 else "🔴"
+            st.success(f"**Anaesthesia:** {results['anaesthesia']} {confidence_icon} ({confidence:.1%})")
         
         if results.get('periprocedural_ia_thrombolysis'):
-            st.info(f"**IA Thrombolysis:** {results['periprocedural_ia_thrombolysis']}")
+            confidence = results.get('confidence_scores', {}).get('periprocedural_ia_thrombolysis', 0)
+            confidence_icon = "🟢" if confidence > 0.8 else "🟡" if confidence > 0.5 else "🔴"
+            st.info(f"**IA Thrombolysis:** {results['periprocedural_ia_thrombolysis']} {confidence_icon} ({confidence:.1%})")
         
         if results.get('periprocedural_antiplatelet'):
-            st.info(f"**Antiplatelet:** {results['periprocedural_antiplatelet']}")
+            confidence = results.get('confidence_scores', {}).get('periprocedural_antiplatelet', 0)
+            confidence_icon = "🟢" if confidence > 0.8 else "🟡" if confidence > 0.5 else "🔴"
+            st.info(f"**Antiplatelet:** {results['periprocedural_antiplatelet']} {confidence_icon} ({confidence:.1%})")
         
         if results.get('site_of_occlusion'):
-            st.info(f"**Occlusion Site:** {results['site_of_occlusion']}")
+            confidence = results.get('confidence_scores', {}).get('site_of_occlusion', 0)
+            confidence_icon = "🟢" if confidence > 0.8 else "🟡" if confidence > 0.5 else "🔴"
+            st.info(f"**Occlusion Site:** {results['site_of_occlusion']} {confidence_icon} ({confidence:.1%})")
         
         if results.get('stenoses_cervical_arteries'):
-            st.info(f"**Cervical Stenoses:** {results['stenoses_cervical_arteries']}")
+            confidence = results.get('confidence_scores', {}).get('stenoses_cervical_arteries', 0)
+            confidence_icon = "🟢" if confidence > 0.8 else "🟡" if confidence > 0.5 else "🔴"
+            st.info(f"**Cervical Stenoses:** {results['stenoses_cervical_arteries']} {confidence_icon} ({confidence:.1%})")
     
     with col2:
-        # Right column - Devices and outcomes
+        # Right column - Devices and outcomes with confidence indicators
         if results.get('aspiration_catheter_used'):
-            st.info(f"**Aspiration Catheter:** {results['aspiration_catheter_used']}")
+            confidence = results.get('confidence_scores', {}).get('aspiration_catheter_used', 0)
+            confidence_icon = "🟢" if confidence > 0.8 else "🟡" if confidence > 0.5 else "🔴"
+            st.info(f"**Aspiration Catheter:** {results['aspiration_catheter_used']} {confidence_icon} ({confidence:.1%})")
         
         if results.get('stent_retriever_used'):
-            st.info(f"**Stent Retriever:** {results['stent_retriever_used']}")
+            confidence = results.get('confidence_scores', {}).get('stent_retriever_used', 0)
+            confidence_icon = "🟢" if confidence > 0.8 else "🟡" if confidence > 0.5 else "🔴"
+            st.info(f"**Stent Retriever:** {results['stent_retriever_used']} {confidence_icon} ({confidence:.1%})")
         
         if results.get('guide_catheter_used'):
-            st.info(f"**Guide Catheter:** {results['guide_catheter_used']}")
+            confidence = results.get('confidence_scores', {}).get('guide_catheter_used', 0)
+            confidence_icon = "🟢" if confidence > 0.8 else "🟡" if confidence > 0.5 else "🔴"
+            st.info(f"**Guide Catheter:** {results['guide_catheter_used']} {confidence_icon} ({confidence:.1%})")
         
         if results.get('microcatheter_used'):
-            st.info(f"**Microcatheter:** {results['microcatheter_used']}")
+            confidence = results.get('confidence_scores', {}).get('microcatheter_used', 0)
+            confidence_icon = "🟢" if confidence > 0.8 else "🟡" if confidence > 0.5 else "🔴"
+            st.info(f"**Microcatheter:** {results['microcatheter_used']} {confidence_icon} ({confidence:.1%})")
         
         if results.get('tici_score'):
-            st.warning(f"**TICI Score:** {results['tici_score']}")
+            confidence = results.get('confidence_scores', {}).get('tici_score', 0)
+            confidence_icon = "🟢" if confidence > 0.8 else "🟡" if confidence > 0.5 else "🔴"
+            st.warning(f"**TICI Score:** {results['tici_score']} {confidence_icon} ({confidence:.1%})")
     
     # Second row for additional info
     col3, col4 = st.columns(2)
@@ -243,6 +282,48 @@ def display_extraction_results(results, method_name):
         
         if results.get('visualisation_vessels'):
             st.info(f"**Vessel Visualisation:** {results['visualisation_vessels']}")
+    
+    # Confidence visualization
+    if 'confidence_scores' in results:
+        st.subheader("📊 Confidence Scores")
+        
+        # Filter out zero confidence scores and system fields
+        confidence_data = {k: v for k, v in results['confidence_scores'].items() 
+                          if v > 0 and k not in ['text_length', 'report_id']}
+        
+        if confidence_data:
+            # Create confidence chart
+            categories = list(confidence_data.keys())
+            confidences = list(confidence_data.values())
+            
+            # Create color-coded bar chart
+            colors = ['#28a745' if c > 0.8 else '#ffc107' if c > 0.5 else '#dc3545' for c in confidences]
+            
+            fig = go.Figure(data=[
+                go.Bar(
+                    x=categories,
+                    y=confidences,
+                    marker_color=colors,
+                    text=[f'{c:.1%}' for c in confidences],
+                    textposition='auto'
+                )
+            ])
+            
+            fig.update_layout(
+                title="Extraction Confidence by Category",
+                xaxis_title="Category",
+                yaxis_title="Confidence Score",
+                yaxis=dict(range=[0, 1], tickformat='.0%'),
+                height=400
+            )
+            
+            st.plotly_chart(fig, use_container_width=True)
+            
+            # Show legend
+            st.markdown("""
+            **Confidence Legend:**
+            🟢 High Confidence (>80%) | 🟡 Medium Confidence (50-80%) | 🔴 Low Confidence (<50%)
+            """)
     
     # Show as DataFrame
     results_df = pd.DataFrame([results])
@@ -937,6 +1018,43 @@ def show_documentation_page():
     - Download results as CSV
     """)
     
+    # New features section
+    st.subheader("🆕 New Features & Improvements")
+    
+    st.markdown("""
+    ### ✨ Enhanced Extraction Pipeline (Latest Update)
+    
+    **1. Confidence Scoring System**
+    - Every extraction now includes a confidence score (0-100%)
+    - Visual indicators: 🟢 High (>80%) | 🟡 Medium (50-80%) | 🔴 Low (<50%)
+    - Pattern specificity and context-aware scoring
+    
+    **2. Manual Review Prioritization**
+    - Automatic assessment of extraction quality
+    - Priority levels: 🔴 High | 🟡 Medium | 🟢 Low
+    - Helps focus manual review efforts on uncertain extractions
+    
+    **3. Fuzzy Matching for Medical Abbreviations**
+    - Intelligent matching of medical abbreviations (rtPA, TICI, ICA, etc.)
+    - Handles spelling variations and similar terms
+    - 200+ medical abbreviations and their full forms
+    
+    **4. Context-Aware Extraction**
+    - Detects negated terms (keine, nicht, ohne)
+    - Identifies uncertainty indicators (möglich, verdacht)
+    - Reduces false positives through context analysis
+    
+    **5. Multi-Language Support**
+    - Enhanced English-German medical terminology
+    - Handles mixed-language medical reports
+    - Fuzzy matching for language variations
+    
+    **6. Expanded Pattern Libraries**
+    - 200-300% more patterns for medical devices and procedures
+    - Better coverage of anesthesia types, catheters, and stent retrievers
+    - More comprehensive complication detection
+    """)
+    
     # Extracted variables
     st.subheader("📋 Extracted Variables")
     
@@ -956,7 +1074,9 @@ def show_documentation_page():
         {'Variable': 'end_time_intervention', 'Description': 'Intervention end time', 'Examples': '10:45, 11:30'},
         {'Variable': 'technique_first_maneuver', 'Description': 'First maneuver technique', 'Examples': 'erste technik'},
         {'Variable': 'number_recanalization_attempts', 'Description': 'Number of recanalization attempts', 'Examples': '3 manöver, 2 attempts'},
-        {'Variable': 'periprocedural_spasmolytic', 'Description': 'Spasmolytic therapy', 'Examples': 'nimodipin, vasospasmus'}
+        {'Variable': 'periprocedural_spasmolytic', 'Description': 'Spasmolytic therapy', 'Examples': 'nimodipin, vasospasmus'},
+        {'Variable': 'confidence_scores', 'Description': '🆕 Confidence score for each extraction', 'Examples': '0.95 (95%), 0.67 (67%)'},
+        {'Variable': 'manual_review_priority', 'Description': '🆕 Priority for manual review', 'Examples': 'high, medium, low'}
     ])
     
     st.dataframe(variables_df, use_container_width=True)
